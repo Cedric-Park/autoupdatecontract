@@ -1,0 +1,8 @@
+selenium
+webdriver-manager
+schedule
+gspread
+oauth2client
+yagmail
+python-dotenv
+requests 
