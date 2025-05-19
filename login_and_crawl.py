@@ -28,6 +28,7 @@ options.add_argument('--no-sandbox')
 options.add_argument('--disable-dev-shm-usage')
 
 SHEET_NAME = '게임더하기_계약관리'  # 실제 구글 시트 문서명으로 수정
+WORKSHEET_NAME = '게임더하기_계약_2025'  # 실제 워크시트명으로 수정
 GOOGLE_CREDENTIALS_FILE = 'google_service_account.json'  # 서비스 계정 키 파일명
 CONTACT_SHEET_NAME = '담당자정보'  # 담당자 정보 시트명
 
@@ -63,24 +64,61 @@ def login():
         driver.quit()
         return None
 
-def crawl_service_req_table(driver):
+def get_estimate_status(driver, estimate_link):
+    """
+    견적서 제출 건 링크 클릭 → 상세페이지 진입 → 협력사/금액/일자 모두 추출 후 문자열 반환
+    """
+    estimate_link.click()
+    # 상세페이지 테이블 로딩 대기
+    WebDriverWait(driver, 15).until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, "div.division30 #dataList"))
+    )
+    time.sleep(1)  # 페이지 렌더링 여유
+    detail_rows = driver.find_elements(By.CSS_SELECTOR, "div.division30 #dataList tbody tr")
+    estimates = []
+    for drow in detail_rows:
+        dtds = drow.find_elements(By.TAG_NAME, "td")
+        if len(dtds) < 7:
+            continue
+        협력사 = dtds[1].text.strip()
+        견적일자 = dtds[3].text.strip()
+        견적금액 = dtds[4].text.strip()
+        estimates.append(f"{협력사}({견적금액}, {견적일자})")
+    # 원래 페이지로 복귀
+    driver.back()
+    WebDriverWait(driver, 15).until(
+        EC.presence_of_element_located((By.ID, "dataList"))
+    )
+    time.sleep(1)
+    return '\n'.join(estimates) if estimates else "없음"
+
+def crawl_service_req_table_with_estimate(driver):
     driver.get(SERVICE_REQ_URL)
     try:
-        # 최대 15초까지 id="dataList" 테이블이 나타날 때까지 대기
         table = WebDriverWait(driver, 15).until(
             EC.presence_of_element_located((By.ID, "dataList"))
         )
     except Exception as e:
         print('테이블 영역을 찾지 못했습니다.', e)
         return []
-
     rows = table.find_elements(By.TAG_NAME, 'tr')
     data = []
     for i, row in enumerate(rows):
         cols = row.find_elements(By.TAG_NAME, 'td')
-        if not cols:
-            continue  # 헤더 등
+        if not cols or len(cols) < 8:
+            continue
         row_data = [col.text.strip() for col in cols]
+        # 견적서 제출 건이 1건 이상이면 상세페이지 진입
+        try:
+            estimate_text = cols[5].text.strip()
+            estimate_link = cols[5].find_element(By.TAG_NAME, "a")
+            if estimate_text and estimate_text != "0건":
+                estimate_status = get_estimate_status(driver, estimate_link)
+            else:
+                estimate_status = "없음"
+        except Exception:
+            estimate_status = "없음"
+        row_data.append(estimate_status)  # 견적서제출현황 컬럼 추가
         data.append(row_data)
     return data
 
@@ -102,7 +140,7 @@ def get_gsheet():
     ]
     creds = ServiceAccountCredentials.from_json_keyfile_name(GOOGLE_CREDENTIALS_FILE, scope)
     client = gspread.authorize(creds)
-    sheet = client.open(SHEET_NAME).sheet1
+    sheet = client.open(SHEET_NAME).worksheet(WORKSHEET_NAME)
     return sheet
 
 def get_contact_map():
@@ -208,7 +246,7 @@ def send_update_emails(company_contacts, new_rows):
         contact = company_contacts[company]
         to_email = contact['email']
         to_name = contact['name']
-        subject = f"[게임더하기] {company} 신규 계약 업데이트 알림"
+        subject = f"[게임더하기] {company} 신규 계약 [{row[3]}] 업데이트 알림"
         body = f"""
 {to_name}님, 안녕하세요.
 게임더하기 DRIC_BOT입니다.
@@ -245,7 +283,7 @@ def main():
     EMAIL_APP_PASSWORD = os.environ.get('EMAIL_APP_PASSWORD')
     driver = login()
     if driver:
-        table_data = crawl_service_req_table(driver)
+        table_data = crawl_service_req_table_with_estimate(driver)
         filtered_data = filter_2025_deadline(table_data)
         print('--- 2025년 입찰 마감일 항목 ---')
         for row in filtered_data:
@@ -280,7 +318,7 @@ def main():
                 company = row[4]
                 if company in company_contacts:
                     to_name = company_contacts[company]['name']
-                    message = f"{to_name}님, 게임사 [{company}]에서 현재 '{row[1]}' 관련 계약이 업데이트 되었습니다."
+                    message = f"{to_name}님, 게임사 [{company}]에서 현재 [{row[1]} - {row[3]}] 계약이 업데이트 되었습니다."
                     send_telegram_message(message)
         driver.quit()
 
