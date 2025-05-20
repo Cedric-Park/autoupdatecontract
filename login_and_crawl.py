@@ -557,22 +557,121 @@ def main():
     EMAIL_SENDER = os.environ.get('EMAIL_SENDER')
     EMAIL_APP_PASSWORD = os.environ.get('EMAIL_APP_PASSWORD')
     driver = login()
+    
     if driver:
-        table_data = crawl_service_req_table_with_estimate(driver)
-        filtered_data = filter_2025_deadline(table_data)
-        print('--- 2025년 입찰 마감일 항목 ---')
-        for row in filtered_data:
-            print(row)
-        new_rows, changed_rows = update_gsheet(filtered_data)
-        # 신규 업데이트된 게임사별 담당자 정보 추출
-        company_contacts = get_new_company_contacts(new_rows + [r[0] for r in changed_rows])
-        print('--- 신규/변경 업데이트된 게임사별 담당자 정보 ---')
+        all_data = []  # 모든 페이지 데이터 저장
+        all_new_rows = []  # 모든 신규 행 저장
+        all_changed_rows = []  # 모든 변경 행 저장
+        
+        # 기본 URL 설정
+        driver.get(SERVICE_REQ_URL)
+        base_url = driver.current_url
+        print(f"기본 URL: {base_url}")
+        
+        # 최대 5페이지까지 순차적으로 처리
+        MAX_PAGES = 5
+        
+        for current_page in range(1, MAX_PAGES + 1):
+            print(f"\n===== 페이지 {current_page} 처리 시작 =====")
+            
+            # 페이지 이동 (첫 페이지는 이미 로드됨)
+            if current_page > 1:
+                # URL을 직접 구성하여 다른 페이지로 이동
+                page_url = f"{base_url}?pageIndex={current_page}"
+                print(f"페이지 URL: {page_url}")
+                driver.get(page_url)
+                time.sleep(3)  # 페이지 로딩 대기
+            
+            try:
+                # 테이블 찾기
+                table = WebDriverWait(driver, 15).until(
+                    EC.presence_of_element_located((By.ID, "dataList"))
+                )
+                
+                # 현재 페이지의 테이블 데이터 추출
+                rows = table.find_elements(By.TAG_NAME, 'tr')
+                
+                if len(rows) <= 1:  # 헤더만 있고 데이터가 없는 경우
+                    print(f"페이지 {current_page}에 데이터가 없습니다. 크롤링 종료.")
+                    break
+                
+                # 현재 페이지 데이터 수집
+                page_data = []
+                for i, row in enumerate(rows):
+                    try:
+                        cols = row.find_elements(By.TAG_NAME, 'td')
+                        if not cols or len(cols) < 8:
+                            continue
+                        row_data = [col.text.strip() for col in cols]
+                        
+                        # 견적서 제출 건이 1건 이상이면 상세페이지 진입
+                        try:
+                            estimate_text = cols[5].text.strip()
+                            estimate_link = cols[5].find_element(By.TAG_NAME, "a")
+                            if estimate_text and estimate_text != "0건":
+                                estimate_status = get_estimate_status(driver, estimate_link)
+                            else:
+                                estimate_status = "없음"
+                        except Exception as e:
+                            print(f"견적서 상세 정보 가져오기 실패: {e}")
+                            estimate_status = "없음"
+                        
+                        row_data.append(estimate_status)  # 견적서제출현황 컬럼 추가
+                        page_data.append(row_data)
+                    except Exception as e:
+                        print(f"행 데이터 추출 중 오류: {e}")
+                        continue
+                
+                print(f"페이지 {current_page}에서 {len(page_data)}개 항목 추출 완료")
+                
+                # 2025년 입찰 마감일 필터링
+                filtered_page_data = filter_2025_deadline(page_data)
+                print(f"페이지 {current_page}에서 2025년 입찰 마감일 항목 {len(filtered_page_data)}개 필터링됨")
+                
+                # 필터링된 데이터가 있는 경우에만 시트 업데이트 진행
+                if filtered_page_data:
+                    # 현재 페이지 데이터에 대해 시트 업데이트 진행
+                    print(f"페이지 {current_page} 데이터 시트 업데이트 시작...")
+                    new_rows, changed_rows = update_gsheet(filtered_page_data)
+                    
+                    # 결과 저장
+                    if new_rows:
+                        all_new_rows.extend(new_rows)
+                        print(f"페이지 {current_page}에서 {len(new_rows)}개 신규 항목 추가")
+                    if changed_rows:
+                        all_changed_rows.extend(changed_rows)
+                        print(f"페이지 {current_page}에서 {len(changed_rows)}개 항목 변경")
+                
+                # 전체 데이터에 현재 페이지 데이터 추가
+                all_data.extend(filtered_page_data)
+                
+            except Exception as e:
+                print(f"페이지 {current_page} 처리 중 오류 발생: {e}")
+                if current_page > 1:
+                    print("이전에 수집된 데이터로 계속 진행합니다.")
+                    break
+                else:
+                    print("첫 페이지 처리 실패, 처리 중단")
+                    driver.quit()
+                    return
+        
+        # 모든 페이지 크롤링 완료 후 최종 결과 출력
+        print(f"\n===== 크롤링 완료 =====")
+        print(f"총 {len(all_data)}개 항목 수집 (2025년 입찰 마감일)")
+        print(f"총 {len(all_new_rows)}개 신규 항목, {len(all_changed_rows)}개 변경 항목")
+        
+        # 신규/변경된 게임사별 담당자 정보 추출
+        company_contacts = get_new_company_contacts(all_new_rows + [r[0] for r in all_changed_rows])
+        print('\n--- 신규/변경 업데이트된 게임사별 담당자 정보 ---')
         for company, info in company_contacts.items():
             print(f'{company}: {info}')
+        
         # 이메일 발송 (신규)
-        send_update_emails(company_contacts, new_rows)
+        if all_new_rows:
+            send_update_emails(company_contacts, all_new_rows)
+        
         # 이메일/텔레그램 알림 (변경)
-        for row, changes, changed_cols in changed_rows:
+        for row, changes, changed_cols in all_changed_rows:
             company = row[4]
             if company in company_contacts:
                 to_name = company_contacts[company]['name']
@@ -587,14 +686,16 @@ def main():
                     print(f"이메일 발송 실패(변경): {to_name}({to_email}) - {e}")
                 # 텔레그램
                 send_telegram_message(alert_info["telegram_message"])
+        
         # 텔레그램 알림 (신규)
-        for row in new_rows:
+        for row in all_new_rows:
             if len(row) >= 5:
                 company = row[4]
                 if company in company_contacts:
                     to_name = company_contacts[company]['name']
                     message = f"{to_name}님, 게임사 [{company}]에서 현재 [{row[1]} - {row[3]}] 계약이 업데이트 되었습니다."
                     send_telegram_message(message)
+        
         driver.quit()
 
 if __name__ == '__main__':
