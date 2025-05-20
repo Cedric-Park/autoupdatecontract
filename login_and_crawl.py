@@ -651,7 +651,8 @@ def main():
         # 최대 5페이지까지 순차적으로 처리
         MAX_PAGES = 5
         
-        for current_page in range(1, MAX_PAGES + 1):
+        current_page = 1
+        while current_page <= MAX_PAGES:
             print(f"\n===== 페이지 {current_page} 처리 시작 =====")
             
             # 페이지 이동 (첫 페이지는 이미 로드됨)
@@ -660,7 +661,7 @@ def main():
                 try:
                     print(f"JavaScript go_Page({current_page}) 함수 호출로 페이지 {current_page}로 이동 시도...")
                     driver.execute_script(f"go_Page({current_page})")
-                    time.sleep(3)  # 페이지 전환 대기
+                    time.sleep(5)  # 페이지 전환 대기 (충분한 시간 확보)
                     
                     # 페이지 번호 확인 (현재 활성화된 페이지가 맞는지)
                     try:
@@ -676,77 +677,125 @@ def main():
                         print(f"활성 페이지 확인 실패: {e}")
                 except Exception as e:
                     print(f"JavaScript 페이지 이동 실패: {e}")
-                    print("이전 페이지 데이터로 계속 진행합니다.")
+                    print("더 이상 페이지를 처리할 수 없습니다. 진행 중단.")
                     break
             
+            # 매 페이지마다 테이블 요소를 새로 찾는다
             try:
-                # 테이블 찾기
+                print("테이블 요소 찾는 중...")
                 table = WebDriverWait(driver, 15).until(
                     EC.presence_of_element_located((By.ID, "dataList"))
                 )
+                print("테이블 요소 찾기 성공")
                 
                 # 현재 페이지의 테이블 데이터 추출
-                rows = table.find_elements(By.TAG_NAME, 'tr')
-                
-                if len(rows) <= 1:  # 헤더만 있고 데이터가 없는 경우
-                    print(f"페이지 {current_page}에 데이터가 없습니다. 크롤링 종료.")
-                    break
-                
-                # 현재 페이지 데이터 수집
-                page_data = []
-                for i, row in enumerate(rows):
-                    try:
-                        cols = row.find_elements(By.TAG_NAME, 'td')
-                        if not cols or len(cols) < 8:
-                            continue
-                        row_data = [col.text.strip() for col in cols]
-                        
-                        # 견적서 제출 건이 1건 이상이면 상세페이지 진입
-                        try:
-                            estimate_text = cols[5].text.strip()
-                            estimate_link = cols[5].find_element(By.TAG_NAME, "a")
-                            if estimate_text and estimate_text != "0건":
-                                estimate_status = get_estimate_status(driver, estimate_link)
-                            else:
-                                estimate_status = "없음"
-                        except Exception as e:
-                            print(f"견적서 상세 정보 가져오기 실패: {e}")
-                            estimate_status = "없음"
-                        
-                        row_data.append(estimate_status)  # 견적서제출현황 컬럼 추가
-                        page_data.append(row_data)
-                    except Exception as e:
-                        print(f"행 데이터 추출 중 오류: {e}")
-                        continue
-                
-                print(f"페이지 {current_page}에서 {len(page_data)}개 항목 추출 완료")
-                
-                # 2025년 입찰 마감일 필터링
-                filtered_page_data = filter_2025_deadline(page_data)
-                print(f"페이지 {current_page}에서 2025년 입찰 마감일 항목 {len(filtered_page_data)}개 필터링됨")
-                
-                # 필터링된 데이터가 있는 경우에만 시트 업데이트 진행
-                if filtered_page_data:
-                    # 현재 페이지 데이터에 대해 시트 업데이트 진행
-                    print(f"페이지 {current_page} 데이터 시트 업데이트 시작...")
-                    new_rows, changed_rows = update_gsheet(filtered_page_data)
+                try:
+                    rows = table.find_elements(By.TAG_NAME, 'tr')
+                    print(f"테이블에서 {len(rows)}개 행 발견")
                     
-                    # 결과 저장
-                    if new_rows:
-                        all_new_rows.extend(new_rows)
-                        print(f"페이지 {current_page}에서 {len(new_rows)}개 신규 항목 추가")
-                    if changed_rows:
-                        all_changed_rows.extend(changed_rows)
-                        print(f"페이지 {current_page}에서 {len(changed_rows)}개 항목 변경")
-                
-                # 전체 데이터에 현재 페이지 데이터 추가
-                all_data.extend(filtered_page_data)
+                    if len(rows) <= 1:  # 헤더만 있고 데이터가 없는 경우
+                        print(f"페이지 {current_page}에 데이터가 없습니다. 크롤링 종료.")
+                        break
+                    
+                    # 현재 페이지 데이터 수집
+                    page_data = []
+                    
+                    # 각 행을 별도로 처리하여 stale element 오류 방지
+                    for i in range(len(rows)):
+                        try:
+                            # 매번 테이블과 행을 새로 가져옴
+                            table = WebDriverWait(driver, 10).until(
+                                EC.presence_of_element_located((By.ID, "dataList"))
+                            )
+                            current_rows = table.find_elements(By.TAG_NAME, 'tr')
+                            
+                            # 행 인덱스가 유효한지 확인
+                            if i >= len(current_rows):
+                                print(f"행 인덱스 {i}가 현재 행 수 {len(current_rows)}를 초과합니다. 건너뜁니다.")
+                                continue
+                            
+                            row = current_rows[i]
+                            cols = row.find_elements(By.TAG_NAME, 'td')
+                            
+                            if not cols or len(cols) < 8:
+                                continue
+                                
+                            row_data = [col.text.strip() for col in cols]
+                            
+                            # 견적서 제출 건이 1건 이상이면 상세페이지 진입
+                            try:
+                                estimate_text = cols[5].text.strip()
+                                if estimate_text and estimate_text != "0건":
+                                    # 매번 테이블에서 행과 셀을 다시 가져옴
+                                    table = WebDriverWait(driver, 10).until(
+                                        EC.presence_of_element_located((By.ID, "dataList"))
+                                    )
+                                    current_rows = table.find_elements(By.TAG_NAME, 'tr')
+                                    if i < len(current_rows):
+                                        row = current_rows[i]
+                                        cols = row.find_elements(By.TAG_NAME, 'td')
+                                        if len(cols) > 5:
+                                            estimate_link = cols[5].find_element(By.TAG_NAME, "a")
+                                            estimate_status = get_estimate_status(driver, estimate_link)
+                                        else:
+                                            estimate_status = "없음"
+                                    else:
+                                        estimate_status = "없음"
+                                else:
+                                    estimate_status = "없음"
+                            except Exception as e:
+                                print(f"견적서 상세 정보 가져오기 실패: {e}")
+                                estimate_status = "없음"
+                            
+                            row_data.append(estimate_status)  # 견적서제출현황 컬럼 추가
+                            page_data.append(row_data)
+                            print(f"행 {i+1} 처리 완료: {row_data[0] if len(row_data) > 0 else '정보 없음'}")
+                            
+                        except Exception as e:
+                            print(f"행 {i+1} 데이터 추출 중 오류: {e}")
+                            continue
+                    
+                    print(f"페이지 {current_page}에서 {len(page_data)}개 항목 추출 완료")
+                    
+                    # 2025년 입찰 마감일 필터링
+                    filtered_page_data = filter_2025_deadline(page_data)
+                    print(f"페이지 {current_page}에서 2025년 입찰 마감일 항목 {len(filtered_page_data)}개 필터링됨")
+                    
+                    # 필터링된 데이터가 있는 경우에만 시트 업데이트 진행
+                    if filtered_page_data:
+                        # 현재 페이지 데이터에 대해 시트 업데이트 진행
+                        print(f"페이지 {current_page} 데이터 시트 업데이트 시작...")
+                        new_rows, changed_rows = update_gsheet(filtered_page_data)
+                        
+                        # 결과 저장
+                        if new_rows:
+                            all_new_rows.extend(new_rows)
+                            print(f"페이지 {current_page}에서 {len(new_rows)}개 신규 항목 추가")
+                        if changed_rows:
+                            all_changed_rows.extend(changed_rows)
+                            print(f"페이지 {current_page}에서 {len(changed_rows)}개 항목 변경")
+                    
+                    # 전체 데이터에 현재 페이지 데이터 추가
+                    all_data.extend(filtered_page_data)
+                    
+                    # 다음 페이지로
+                    current_page += 1
+                    
+                except Exception as e:
+                    print(f"테이블 행 처리 중 오류 발생: {e}")
+                    if current_page > 1:
+                        print("이전에 수집된 데이터로 계속 진행합니다.")
+                        current_page += 1
+                    else:
+                        print("첫 페이지 처리 실패, 처리 중단")
+                        driver.quit()
+                        return
                 
             except Exception as e:
-                print(f"페이지 {current_page} 처리 중 오류 발생: {e}")
+                print(f"테이블 찾기 중 오류 발생: {e}")
                 if current_page > 1:
                     print("이전에 수집된 데이터로 계속 진행합니다.")
-                    break
+                    current_page += 1
                 else:
                     print("첫 페이지 처리 실패, 처리 중단")
                     driver.quit()
