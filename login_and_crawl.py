@@ -230,15 +230,67 @@ def find_and_compare_changes_without_api(existing_row, new_row, header):
     """
     API 호출 없이 로컬에서 변경사항을 비교하는 함수
     """
+    print(f"항목 비교 시작: {existing_row[0].strip()} - {existing_row[3].strip()}")
+    
     # 번호 + 서비스 요청명 + 게임사 기준으로 매칭
     if existing_row[0].strip() == new_row[0].strip() and existing_row[3].strip() == new_row[3].strip() and existing_row[4].strip() == new_row[4].strip():
         changes = []
         changed_cols = []
+        
+        # 실제 컬럼 인덱스와 의미 (중요한 필드들)
+        important_fields = {
+            5: "견적서제출건수",  # 6번째 컬럼: 견적서 제출 건수
+            8: "진행상황",      # 9번째 컬럼: 진행상황
+            9: "견적서제출현황"   # 10번째 컬럼: 견적서제출현황 (우리가 추가한 컬럼)
+        }
+        
+        # 중요 필드 값 직접 출력하여 디버깅
+        print(f"\n*** 중요 필드 비교 ***")
+        for idx, field_name in important_fields.items():
+            if idx < len(existing_row) and idx < len(new_row):
+                old_val = existing_row[idx].strip() if idx < len(existing_row) else ""
+                new_val = new_row[idx].strip() if idx < len(new_row) else ""
+                is_changed = old_val != new_val
+                status = "변경됨" if is_changed else "동일"
+                print(f"  {field_name}: {status}")
+                print(f"    - 기존값: '{old_val}'")
+                print(f"    - 새값: '{new_val}'")
+                
+                if is_changed:
+                    # 중요 필드는 header 상관없이 우리가 알고 있는 이름으로 지정
+                    header_name = header[idx] if idx < len(header) else field_name
+                    changes.append(f"- {header_name} : {old_val} → {new_val}")
+                    changed_cols.append(header_name)
+        
+        # 그 외 모든 필드 비교
+        print(f"\n*** 전체 필드 비교 ***")
         for i, (old, new) in enumerate(zip(existing_row, new_row)):
-            if i < len(header) and old.strip() != new.strip():
-                changes.append(f"- {header[i]} : {old.strip()} → {new.strip()}")
-                changed_cols.append(header[i])
+            # 이미 중요 필드로 체크한 것은 건너뜀
+            if i in important_fields:
+                continue
+                
+            if i < len(header):
+                old_val = old.strip()
+                new_val = new.strip()
+                
+                # 비교할 때 공백 제거하고 비교
+                if old_val != new_val:
+                    field_name = header[i] if i < len(header) else f"컬럼{i+1}"
+                    print(f"  {field_name} 변경: '{old_val}' → '{new_val}'")
+                    changes.append(f"- {field_name} : {old_val} → {new_val}")
+                    changed_cols.append(field_name)
+        
+        # 변경사항 요약
+        if changes:
+            print(f"\n총 {len(changes)}개 항목 변경 감지:")
+            for change in changes:
+                print(f"  {change}")
+        else:
+            print("\n변경사항 없음")
+            
         return changes, changed_cols
+    else:
+        print("항목 불일치: 건너뜀")
     return None, None
 
 def find_and_compare_changes(sheet, new_row):
@@ -277,9 +329,14 @@ def update_gsheet(filtered_data):
 
         # 번호+서비스요청명+게임사 기준으로 키 생성
         existing_keys = {}  # 키 -> 인덱스 매핑으로 변경
+        existing_data = {}  # 키 -> 행 데이터 매핑 (디버깅용)
         for idx, row in enumerate(existing[1:], start=2):
-            key = (row[0].strip(), row[3].strip(), row[4].strip())
-            existing_keys[key] = idx
+            if len(row) >= 5:  # 최소 5개 컬럼이 있는지 확인
+                key = (row[0].strip(), row[3].strip(), row[4].strip())
+                existing_keys[key] = idx
+                existing_data[key] = row
+        
+        print(f"기존 키 데이터 {len(existing_keys)}개 매핑 완료")
         
         new_rows = []
         changed_rows = []
@@ -289,14 +346,22 @@ def update_gsheet(filtered_data):
         
         for i, row in enumerate(filtered_data):
             # 처리 중인 항목 표시
-            if i > 0 and i % 10 == 0:
+            if i > 0 and i % 5 == 0:
                 print(f"총 {len(filtered_data)}개 중 {i}개 항목 처리 완료...")
+            
+            if len(row) < 5:
+                print(f"항목 {i}번: 컬럼 수 부족 ({len(row)}), 건너뜀")
+                continue
                 
             key = (row[0].strip(), row[3].strip(), row[4].strip())
+            print(f"\n항목 처리: {key[0]} - {key[1]}")
             
             if key in existing_keys:
+                print(f"기존 데이터 발견: ID={key[0]}")
                 # 기존 항목인 경우 - 변경사항이 있는지 확인
-                changes, changed_cols = find_and_compare_changes_without_api(existing[existing_keys[key]-1], row, header)
+                ex_row = existing[existing_keys[key]-1]
+                changes, changed_cols = find_and_compare_changes_without_api(ex_row, row, header)
+                
                 if changes:
                     # 변경사항이 있는 경우 업데이트
                     idx = existing_keys[key]  # 해당 행의 인덱스
@@ -309,29 +374,45 @@ def update_gsheet(filtered_data):
                     
                     # 업데이트 범위 설정
                     update_range = f'A{idx}:{last_col}{idx}'
+                    print(f"변경사항 업데이트 범위: {update_range}, 변경 컬럼: {changed_cols}")
                     
                     # 최신 API 형식으로 업데이트
                     sheet.update(values=[row], range_name=update_range)
                     changed_rows.append((row, changes, changed_cols))
-                    print(f"행 {idx} 업데이트: {changes}")
+                    print(f"행 {idx} 업데이트 완료: {len(changes)}개 항목 변경됨")
                     
                     # API 할당량 초과 방지를 위한 지연
                     time.sleep(API_DELAY)
+                else:
+                    print(f"변경사항 없음, 업데이트 필요 없음")
             else:
                 # 완전 신규 항목
+                print(f"신규 항목 발견: ID={key[0]}")
+                
                 # 행 길이 맞추기
                 if len(row) < header_len:
                     row = row + [''] * (header_len - len(row))
                 elif len(row) > header_len:
                     row = row[:header_len]
                 
+                # 신규 행 요약 출력
+                important_fields = ["번호", "서비스 요청명", "게임사", "입찰 마감일", "견적서 제출", "진행상황"]
+                field_indices = [0, 3, 4, 6, 5, 8]  # 해당 필드의 인덱스
+                
+                print("신규 항목 주요 정보:")
+                for field, idx in zip(important_fields, field_indices):
+                    if idx < len(row):
+                        print(f"  {field}: {row[idx]}")
+                
+                # 행 추가
                 sheet.append_row(row)
                 new_rows.append(row)
-                print(f"신규 행 추가: {row[0]} - {row[3]} - {row[4]}")
+                print(f"신규 행 추가 완료: {row[0]} - {row[3]} - {row[4]}")
                 
                 # API 할당량 초과 방지를 위한 지연
                 time.sleep(API_DELAY)
         
+        print("\n===== 시트 업데이트 결과 =====")
         if new_rows:
             print(f'{len(new_rows)}건 신규 업데이트 완료')
         if changed_rows:
