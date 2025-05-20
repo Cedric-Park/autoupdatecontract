@@ -101,26 +101,94 @@ def crawl_service_req_table_with_estimate(driver):
     except Exception as e:
         print('테이블 영역을 찾지 못했습니다.', e)
         return []
-    rows = table.find_elements(By.TAG_NAME, 'tr')
-    data = []
-    for i, row in enumerate(rows):
-        cols = row.find_elements(By.TAG_NAME, 'td')
-        if not cols or len(cols) < 8:
-            continue
-        row_data = [col.text.strip() for col in cols]
-        # 견적서 제출 건이 1건 이상이면 상세페이지 진입
-        try:
-            estimate_text = cols[5].text.strip()
-            estimate_link = cols[5].find_element(By.TAG_NAME, "a")
-            if estimate_text and estimate_text != "0건":
-                estimate_status = get_estimate_status(driver, estimate_link)
-            else:
+    
+    all_data = []
+    page_num = 1
+    
+    while True:
+        print(f"현재 페이지 {page_num} 크롤링 중...")
+        # 현재 페이지의 테이블 데이터 추출
+        rows = table.find_elements(By.TAG_NAME, 'tr')
+        data = []
+        for i, row in enumerate(rows):
+            cols = row.find_elements(By.TAG_NAME, 'td')
+            if not cols or len(cols) < 8:
+                continue
+            row_data = [col.text.strip() for col in cols]
+            # 견적서 제출 건이 1건 이상이면 상세페이지 진입
+            try:
+                estimate_text = cols[5].text.strip()
+                estimate_link = cols[5].find_element(By.TAG_NAME, "a")
+                if estimate_text and estimate_text != "0건":
+                    estimate_status = get_estimate_status(driver, estimate_link)
+                else:
+                    estimate_status = "없음"
+            except Exception:
                 estimate_status = "없음"
-        except Exception:
-            estimate_status = "없음"
-        row_data.append(estimate_status)  # 견적서제출현황 컬럼 추가
-        data.append(row_data)
-    return data
+            row_data.append(estimate_status)  # 견적서제출현황 컬럼 추가
+            data.append(row_data)
+        
+        # 현재 페이지 데이터를 전체 데이터에 추가
+        all_data.extend(data)
+        
+        # 다음 페이지가 있는지 확인
+        try:
+            # 페이지네이션 영역 찾기
+            pagination = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.CLASS_NAME, "pagination"))
+            )
+            
+            # 다음 페이지 버튼 찾기 (페이지 번호 또는 '다음' 버튼)
+            next_page = None
+            
+            # 현재 페이지 번호 확인
+            current_page_element = pagination.find_element(By.CLASS_NAME, "active")
+            current_page_number = int(current_page_element.text.strip())
+            
+            # 페이지 링크들 확인
+            page_links = pagination.find_elements(By.TAG_NAME, "a")
+            
+            for link in page_links:
+                # 다음 페이지 번호 찾기
+                if link.text.strip() and link.text.strip().isdigit():
+                    if int(link.text.strip()) == current_page_number + 1:
+                        next_page = link
+                        break
+                # 또는 '다음' 버튼 찾기 (텍스트가 '다음'인 링크)
+                elif "다음" in link.text:
+                    next_page = link
+                    break
+            
+            # 다음 페이지가 없으면 루프 종료
+            if not next_page:
+                print("마지막 페이지에 도달했습니다.")
+                break
+            
+            # 다음 페이지로 이동
+            next_page.click()
+            
+            # 페이지 로딩 대기
+            WebDriverWait(driver, 15).until(
+                EC.staleness_of(table)
+            )
+            
+            # 테이블 다시 찾기
+            table = WebDriverWait(driver, 15).until(
+                EC.presence_of_element_located((By.ID, "dataList"))
+            )
+            
+            # 페이지 번호 증가
+            page_num += 1
+            
+            # 페이지 완전 로딩을 위해 잠시 대기
+            time.sleep(2)
+            
+        except Exception as e:
+            print(f"다음 페이지를 찾지 못했거나 이동 중 오류 발생: {e}")
+            break
+    
+    print(f"전체 {page_num}개 페이지 크롤링 완료, 총 {len(all_data)}개 항목 수집")
+    return all_data
 
 def filter_2025_deadline(data):
     filtered = []
