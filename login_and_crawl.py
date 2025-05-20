@@ -80,9 +80,9 @@ def get_estimate_status(driver, estimate_link):
         dtds = drow.find_elements(By.TAG_NAME, "td")
         if len(dtds) < 7:
             continue
-        협력사 = dtds[1].text.strip()
-        견적일자 = dtds[3].text.strip()
-        견적금액 = dtds[4].text.strip()
+        협력사 = dtds[2].text.strip()
+        견적일자 = dtds[4].text.strip()
+        견적금액 = dtds[5].text.strip()
         estimates.append(f"{협력사}({견적금액}, {견적일자})")
     # 원래 페이지로 복귀
     driver.back()
@@ -191,26 +191,56 @@ def update_gsheet(filtered_data):
     sheet = get_gsheet()
     existing = sheet.get_all_values()
     header = existing[0]
-    # 번호+서비스요청명+게임사 기준으로 중복 체크
-    existing_keys = set((row[0].strip(), row[3].strip(), row[4].strip()) for row in existing[1:])
+    header_len = len(header)
+    # 컬럼 수에 따른 마지막 열 문자 계산 (A, B, ... Z, AA, ...)
+    last_col = chr(65 + min(25, header_len - 1))  # Z까지만 처리 (26개)
+    if header_len > 26:
+        last_col = 'A' + chr(65 + (header_len - 1) % 26)  # AA, AB, ...
+
+    # 번호+서비스요청명+게임사 기준으로 키 생성
+    existing_keys = {}  # 키 -> 인덱스 매핑으로 변경
+    for idx, row in enumerate(existing[1:], start=2):
+        key = (row[0].strip(), row[3].strip(), row[4].strip())
+        existing_keys[key] = idx
+    
     new_rows = []
     changed_rows = []
+    
     for row in filtered_data:
         key = (row[0].strip(), row[3].strip(), row[4].strip())
-        if key not in existing_keys:
-            # 기존 row와 번호+서비스요청명+게임사로 매칭해 변경 내역 확인
+        
+        if key in existing_keys:
+            # 기존 항목인 경우 - 변경사항이 있는지 확인
             changes, changed_cols = find_and_compare_changes(sheet, row)
             if changes:
-                # 기존 row 수정(값 갱신)
-                for idx, old_row in enumerate(existing[1:], start=2):  # 2행부터
-                    if old_row[0].strip() == row[0].strip() and old_row[3].strip() == row[3].strip() and old_row[4].strip() == row[4].strip():
-                        sheet.update(f'A{idx}:I{idx}', [row])
-                        changed_rows.append((row, changes, changed_cols))
-                        break
-            else:
-                # 완전 신규 row 추가
-                sheet.append_row(row)
-                new_rows.append(row)
+                # 변경사항이 있는 경우 업데이트
+                idx = existing_keys[key]  # 해당 행의 인덱스
+                
+                # row 길이가 header보다 짧으면 확장
+                if len(row) < header_len:
+                    row = row + [''] * (header_len - len(row))
+                elif len(row) > header_len:
+                    row = row[:header_len]
+                
+                # 업데이트 범위 설정
+                update_range = f'A{idx}:{last_col}{idx}'
+                
+                # 최신 API 형식으로 업데이트
+                sheet.update(values=[row], range_name=update_range)
+                changed_rows.append((row, changes, changed_cols))
+                print(f"행 {idx} 업데이트: {changes}")
+        else:
+            # 완전 신규 항목
+            # 행 길이 맞추기
+            if len(row) < header_len:
+                row = row + [''] * (header_len - len(row))
+            elif len(row) > header_len:
+                row = row[:header_len]
+            
+            sheet.append_row(row)
+            new_rows.append(row)
+            print(f"신규 행 추가: {row[0]} - {row[3]} - {row[4]}")
+    
     if new_rows:
         print(f'{len(new_rows)}건 신규 업데이트 완료')
     if changed_rows:
@@ -219,15 +249,157 @@ def update_gsheet(filtered_data):
         print('신규/변경 업데이트 없음')
     return new_rows, changed_rows
 
-# 알림 메시지 생성 함수
+def format_estimate_details(estimate_str):
+    """
+    견적서 세부 정보를 포맷팅하는 함수
+    기존 형식: "주식회사 게임덱스(3,850,000 원, 2025-05-19)"
+    새 형식: "1) ✔ 2025-05-19 | 주식회사 게임덱스 - 견적등록 (₩3,850,000)"
+    """
+    if estimate_str == "없음":
+        return "없음"
+    
+    formatted_items = []
+    estimate_items = estimate_str.split('\n')
+    
+    for i, item in enumerate(estimate_items, 1):
+        # 기존 형식 파싱
+        if '(' in item and ')' in item:
+            company_part = item.split('(')[0].strip()
+            details_part = item.split('(')[1].replace(')', '')
+            
+            # 금액과 날짜 파싱
+            parts = details_part.split(', ')
+            if len(parts) >= 2:
+                amount = parts[0].strip()
+                date = parts[1].strip()
+                
+                # 금액 형식 변환 (3,850,000 원 -> ₩3,850,000)
+                amount = amount.replace(' 원', '')
+                amount = '₩' + amount
+                
+                # 새 형식으로 조합
+                formatted_item = f"{i}) ✔ {date} | {company_part} - 견적등록 ({amount})"
+                formatted_items.append(formatted_item)
+            else:
+                # 파싱 실패 시 원본 그대로 유지
+                formatted_items.append(f"{i}) ✔ {item}")
+        else:
+            # 파싱 실패 시 원본 그대로 유지
+            formatted_items.append(f"{i}) ✔ {item}")
+    
+    return '\n'.join(formatted_items)
 
-def make_change_alert(row, changes, changed_cols):
+def make_change_alert(row, changes, changed_cols, contact_info=None):
+    """
+    변경 알림 메시지 생성 함수
+    이메일용과 텔레그램용 메시지를 다르게 생성하고, 견적서 제출현황 등 포맷 개선
+    """
     company = row[4]
     service_req = row[3]
     col_str = ', '.join(changed_cols)
-    title = f"[게임더하기] {company} - 계약 정보 변경 알림 [{col_str}]"
-    body = f"[{service_req}/{company}] 계약 정보가 변경되었습니다.\n" + '\n'.join(changes)
-    return title, body
+    
+    # 담당자 정보
+    to_name = contact_info['name'] if contact_info else ""
+    
+    # 기본 계약 정보 (현재 값 기준)
+    deadline_date = row[6]  # 입찰 마감일
+    selection_date = row[7]  # 선정 마감일
+    progress_status = row[8]  # 진행상황
+    
+    # 변경 항목 포맷팅 (견적서 제출현황은 특별 처리)
+    formatted_changes = []
+    estimate_changes = None
+    
+    for change_str in changes:
+        # 변경 항목 분리
+        parts = change_str.split(' : ')
+        if len(parts) != 2:
+            formatted_changes.append(change_str)
+            continue
+        
+        field, value_change = parts
+        field = field.strip('- ')
+        
+        # 입찰 마감일은 별도 처리(현재 값만 표시)
+        if field == "입찰 마감일":
+            # 입찰 마감일 변경 정보는 별도로 처리하지 않음
+            continue
+        # 견적서제출현황인 경우 특별 처리
+        elif field == "견적서제출현황":
+            old_val, new_val = value_change.split(' → ')
+            
+            # 새로운 형식으로 포맷팅
+            new_formatted = format_estimate_details(new_val)
+            
+            # 견적서 변경 정보는 별도 섹션으로 저장
+            estimate_changes = {
+                "old": old_val,
+                "new": new_formatted
+            }
+        # 그 외 일반적인 변경 항목
+        else:
+            formatted_changes.append(f"- {field}: {value_change}")
+    
+    # 이메일용 제목 및 본문
+    email_title = f"[게임더하기] {company} - 계약 정보 변경 알림 [{col_str}]"
+    
+    # 본문 구성
+    email_body = f"""
+안녕하세요, {to_name}님.
+게임더하기 DRIC_BOT입니다.
+
+[{service_req}] 계약 정보에 변경 사항이 있어 알려드립니다.
+게임사: {company}
+
+계약 기본 정보:
+- 입찰 마감일: {deadline_date}
+- 진행상황: {progress_status}
+
+"""
+    
+    # 변경 항목이 있는 경우 추가
+    if formatted_changes:
+        email_body += "변경된 항목:\n" + "\n".join(formatted_changes) + "\n\n"
+    
+    # 견적서 변경 정보가 있는 경우 별도 섹션으로 추가
+    if estimate_changes:
+        email_body += f"""견적서 제출 현황:
+- 변경 전: {estimate_changes['old']}
+- 변경 후:
+{estimate_changes['new']}
+
+"""
+    
+    email_body += """확인 부탁드립니다.
+감사합니다."""
+    
+    # 텔레그램용 메시지 (더 간결하게)
+    telegram_title = f"🔔 [{company}] 계약 정보 변경"
+    telegram_body = f"""
+{to_name}님, 게임사 [{company}]의 '{service_req}' 계약 정보가 변경되었습니다.
+
+📅 입찰 마감일: {deadline_date}
+🔄 진행상황: {progress_status}
+"""
+    
+    # 변경 항목이 있는 경우 추가
+    if formatted_changes:
+        telegram_body += "\n변경된 항목:\n" + "\n".join(formatted_changes) + "\n"
+    
+    # 견적서 변경 정보가 있는 경우 별도 섹션으로 추가
+    if estimate_changes:
+        telegram_body += f"""
+📋 견적서 제출 현황:
+- 변경 전: {estimate_changes['old']}
+- 변경 후:
+{estimate_changes['new']}
+"""
+    
+    return {
+        "email_title": email_title,
+        "email_body": email_body,
+        "telegram_message": f"{telegram_title}\n{telegram_body}"
+    }
 
 # 신규 계약 담당자에게 이메일 발송
 def send_update_emails(company_contacts, new_rows):
@@ -302,16 +474,16 @@ def main():
             if company in company_contacts:
                 to_name = company_contacts[company]['name']
                 to_email = company_contacts[company]['email']
-                title, body = make_change_alert(row, changes, changed_cols)
+                alert_info = make_change_alert(row, changes, changed_cols, company_contacts[company])
                 # 이메일
                 try:
                     yag = yagmail.SMTP(EMAIL_SENDER, EMAIL_APP_PASSWORD)
-                    yag.send(to=to_email, subject=title, contents=body)
+                    yag.send(to=to_email, subject=alert_info["email_title"], contents=alert_info["email_body"])
                     print(f"이메일 발송 완료(변경): {to_name}({to_email})")
                 except Exception as e:
                     print(f"이메일 발송 실패(변경): {to_name}({to_email}) - {e}")
                 # 텔레그램
-                send_telegram_message(f"{title}\n{body}")
+                send_telegram_message(alert_info["telegram_message"])
         # 텔레그램 알림 (신규)
         for row in new_rows:
             if len(row) >= 5:
