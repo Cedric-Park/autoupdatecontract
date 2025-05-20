@@ -311,53 +311,45 @@ def find_and_compare_changes(sheet, new_row):
             return changes, changed_cols
     return None, None
 
-def update_gsheet(filtered_data):
+def update_gsheet(filtered_data, sheet=None, existing=None, existing_keys=None, header=None):
+    """
+    필터링된 데이터를 구글 시트에 업데이트하는 함수
+    sheet, existing, existing_keys, header 매개변수가 제공되면 재사용
+    """
     try:
-        sheet = get_gsheet()
-        print("Google 시트 접근 중...")
-        
-        # 시트 데이터를 한 번만 가져오기
-        existing = sheet.get_all_values()
-        print(f"기존 데이터 {len(existing)-1}개 항목 로드 완료")
-        
-        header = existing[0]
-        header_len = len(header)
-        # 컬럼 수에 따른 마지막 열 문자 계산 (A, B, ... Z, AA, ...)
-        last_col = chr(65 + min(25, header_len - 1))  # Z까지만 처리 (26개)
-        if header_len > 26:
-            last_col = 'A' + chr(65 + (header_len - 1) % 26)  # AA, AB, ...
-
-        # 번호+서비스요청명+게임사 기준으로 키 생성
-        existing_keys = {}  # 키 -> 인덱스 매핑으로 변경
-        existing_data = {}  # 키 -> 행 데이터 매핑 (디버깅용)
-        for idx, row in enumerate(existing[1:], start=2):
-            if len(row) >= 5:  # 최소 5개 컬럼이 있는지 확인
-                key = (row[0].strip(), row[3].strip(), row[4].strip())
-                existing_keys[key] = idx
-                existing_data[key] = row
-        
-        print(f"기존 키 데이터 {len(existing_keys)}개 매핑 완료")
-        
+        # 필요한 시트 데이터가 제공되지 않은 경우에만 새로 가져옴
+        if sheet is None or existing is None or existing_keys is None or header is None:
+            sheet = get_gsheet()
+            print("Google 시트 데이터 로드 중...")
+            
+            # 시트 데이터를 한 번만 가져오기
+            existing = sheet.get_all_values()
+            print(f"기존 데이터 {len(existing)-1}개 항목 로드 완료")
+            
+            header = existing[0]
+            
+            # 번호+서비스요청명+게임사 기준으로 키 생성
+            existing_keys = {}  # 키 -> 인덱스 매핑으로 변경
+            for idx, row in enumerate(existing[1:], start=2):
+                if len(row) >= 5:  # 최소 5개 컬럼이 있는지 확인
+                    key = (row[0].strip(), row[3].strip(), row[4].strip())
+                    existing_keys[key] = idx
+            
+            print(f"기존 데이터 키 매핑 완료")
+        else:
+            print("기존 시트 데이터 재사용")
+            
         new_rows = []
         changed_rows = []
         
-        # API 호출 간 지연 시간
-        API_DELAY = 2  # 초
-        
-        for i, row in enumerate(filtered_data):
-            # 처리 중인 항목 표시
-            if i > 0 and i % 5 == 0:
-                print(f"총 {len(filtered_data)}개 중 {i}개 항목 처리 완료...")
-            
+        for row in filtered_data:
             if len(row) < 5:
-                print(f"항목 {i}번: 컬럼 수 부족 ({len(row)}), 건너뜀")
                 continue
                 
             key = (row[0].strip(), row[3].strip(), row[4].strip())
-            print(f"\n항목 처리: {key[0]} - {key[1]}")
+            item_id = row[0].strip() if len(row) > 0 else "알 수 없음"
             
             if key in existing_keys:
-                print(f"기존 데이터 발견: ID={key[0]}")
                 # 기존 항목인 경우 - 변경사항이 있는지 확인
                 ex_row = existing[existing_keys[key]-1]
                 changes, changed_cols = find_and_compare_changes_without_api(ex_row, row, header)
@@ -365,73 +357,39 @@ def update_gsheet(filtered_data):
                 if changes:
                     # 변경사항이 있는 경우 업데이트
                     idx = existing_keys[key]  # 해당 행의 인덱스
-                    
-                    # row 길이가 header보다 짧으면 확장
-                    if len(row) < header_len:
-                        row = row + [''] * (header_len - len(row))
-                    elif len(row) > header_len:
-                        row = row[:header_len]
-                    
-                    # 업데이트 범위 설정
-                    update_range = f'A{idx}:{last_col}{idx}'
-                    print(f"변경사항 업데이트 범위: {update_range}, 변경 컬럼: {changed_cols}")
-                    
-                    # 최신 API 형식으로 업데이트
-                    sheet.update(values=[row], range_name=update_range)
+                    sheet.update(f'A{idx}:J{idx}', [row[:10]])  # 최대 10개 컬럼까지만 업데이트
                     changed_rows.append((row, changes, changed_cols))
-                    print(f"행 {idx} 업데이트 완료: {len(changes)}개 항목 변경됨")
+                    print(f"항목 {item_id} 업데이트 완료")
                     
                     # API 할당량 초과 방지를 위한 지연
-                    time.sleep(API_DELAY)
-                else:
-                    print(f"변경사항 없음, 업데이트 필요 없음")
+                    time.sleep(2)
             else:
                 # 완전 신규 항목
-                print(f"신규 항목 발견: ID={key[0]}")
-                
-                # 행 길이 맞추기
-                if len(row) < header_len:
-                    row = row + [''] * (header_len - len(row))
-                elif len(row) > header_len:
-                    row = row[:header_len]
-                
-                # 신규 행 요약 출력
-                important_fields = ["번호", "서비스 요청명", "게임사", "입찰 마감일", "견적서 제출", "진행상황"]
-                field_indices = [0, 3, 4, 6, 5, 8]  # 해당 필드의 인덱스
-                
-                print("신규 항목 주요 정보:")
-                for field, idx in zip(important_fields, field_indices):
-                    if idx < len(row):
-                        print(f"  {field}: {row[idx]}")
-                
-                # 행 추가
+                print(f"신규 항목 발견: ID={item_id}")
                 sheet.append_row(row)
                 new_rows.append(row)
-                print(f"신규 행 추가 완료: {row[0]} - {row[3]} - {row[4]}")
+                print(f"신규 항목 {item_id} 추가 완료")
                 
                 # API 할당량 초과 방지를 위한 지연
-                time.sleep(API_DELAY)
+                time.sleep(2)
+                
+                # 메모리상의 기존 데이터도 업데이트 (다음 페이지에서 중복 추가 방지)
+                existing.append(row)
+                existing_keys[key] = len(existing)
         
-        print("\n===== 시트 업데이트 결과 =====")
-        if new_rows:
-            print(f'{len(new_rows)}건 신규 업데이트 완료')
-        if changed_rows:
-            print(f'{len(changed_rows)}건 변경 업데이트 완료')
-        if not new_rows and not changed_rows:
-            print('신규/변경 업데이트 없음')
-        return new_rows, changed_rows
+        return new_rows, changed_rows, sheet, existing, existing_keys, header
         
     except gspread.exceptions.APIError as e:
         if "429" in str(e):
             print("Google Sheets API 할당량이 초과되었습니다. 잠시 후 다시 시도합니다.")
             time.sleep(60)  # 1분 대기 후 재시도
-            return update_gsheet(filtered_data)  # 재귀적으로 다시 시도
+            return update_gsheet(filtered_data, sheet, existing, existing_keys, header)  # 재귀적으로 다시 시도
         else:
             print(f"Google Sheets API 오류: {e}")
-            return [], []
+            return [], [], sheet, existing, existing_keys, header
     except Exception as e:
         print(f"시트 업데이트 중 오류 발생: {e}")
-        return [], []
+        return [], [], sheet, existing, existing_keys, header
 
 def format_estimate_details(estimate_str):
     """
@@ -644,6 +602,21 @@ def main():
         all_new_rows = []  # 모든 신규 행 저장
         all_changed_rows = []  # 모든 변경 행 저장
         
+        # 구글 시트 데이터를 한 번만 불러오기
+        print("Google 시트 초기 데이터 로드 중...")
+        sheet = get_gsheet()
+        existing = sheet.get_all_values()
+        header = existing[0]
+        
+        # 번호+서비스요청명+게임사 기준으로 키 생성
+        existing_keys = {}  # 키 -> 인덱스 매핑으로 변경
+        for idx, row in enumerate(existing[1:], start=2):
+            if len(row) >= 5:  # 최소 5개 컬럼이 있는지 확인
+                key = (row[0].strip(), row[3].strip(), row[4].strip())
+                existing_keys[key] = idx
+        
+        print(f"기존 데이터 {len(existing)-1}개 항목 로드 완료")
+        
         # 기본 URL 설정
         driver.get(SERVICE_REQ_URL)
         print(f"서비스 요청 페이지 접속")
@@ -663,18 +636,30 @@ def main():
                     driver.execute_script(f"go_Page({current_page})")
                     time.sleep(5)  # 페이지 전환 대기 (충분한 시간 확보)
                     
-                    # 페이지 번호 확인 (현재 활성화된 페이지가 맞는지)
+                    # 페이지 전환 성공 여부 확인
                     try:
-                        active_page = driver.find_element(By.CSS_SELECTOR, ".pagination .active")
-                        if active_page:
-                            active_page_number = active_page.text.strip()
-                            print(f"현재 활성화된 페이지: {active_page_number}")
+                        # 테이블이 존재하는지 확인
+                        WebDriverWait(driver, 10).until(
+                            EC.presence_of_element_located((By.ID, "dataList"))
+                        )
+                        
+                        # 현재 페이지 번호 확인 (<strong> 태그로 표시됨)
+                        try:
+                            current_page_element = driver.find_element(By.CSS_SELECTOR, "div.paging_area strong")
+                            if current_page_element:
+                                current_page_number = current_page_element.text.strip()
+                                print(f"현재 활성화된 페이지: {current_page_number}")
+                                
+                                # 페이지 번호가 일치하지 않으면 경고
+                                if current_page_number != str(current_page):
+                                    print(f"경고: 요청한 페이지({current_page})와 실제 페이지({current_page_number})가 다릅니다")
+                        except Exception as e:
+                            # 페이지 번호 확인에 실패해도 테이블이 있으면 계속 진행
+                            print(f"현재 페이지 번호 확인 실패: {e}")
                             
-                            # 페이지 번호가 일치하지 않으면 경고
-                            if active_page_number != str(current_page):
-                                print(f"경고: 요청한 페이지({current_page})와 실제 페이지({active_page_number})가 다릅니다.")
+                        print(f"페이지 {current_page}로 이동 성공 (테이블 확인됨)")
                     except Exception as e:
-                        print(f"활성 페이지 확인 실패: {e}")
+                        print(f"페이지 {current_page} 이동 후 테이블 확인 실패: {e}")
                 except Exception as e:
                     print(f"JavaScript 페이지 이동 실패: {e}")
                     print("더 이상 페이지를 처리할 수 없습니다. 진행 중단.")
@@ -763,9 +748,11 @@ def main():
                     
                     # 필터링된 데이터가 있는 경우에만 시트 업데이트 진행
                     if filtered_page_data:
-                        # 현재 페이지 데이터에 대해 시트 업데이트 진행
+                        # 현재 페이지 데이터에 대해 시트 업데이트 진행 (기존 시트 데이터 재사용)
                         print(f"페이지 {current_page} 데이터 시트 업데이트 시작...")
-                        new_rows, changed_rows = update_gsheet(filtered_page_data)
+                        new_rows, changed_rows, sheet, existing, existing_keys, header = update_gsheet(
+                            filtered_page_data, sheet, existing, existing_keys, header
+                        )
                         
                         # 결과 저장
                         if new_rows:
@@ -842,6 +829,7 @@ def main():
                     message = f"{to_name}님, 게임사 [{company}]에서 현재 [{row[1]} - {row[3]}] 계약이 업데이트 되었습니다."
                     send_telegram_message(message)
         
+        print("\n작업이 완료되었습니다.")
         driver.quit()
 
 if __name__ == '__main__':
