@@ -230,7 +230,8 @@ def find_and_compare_changes_without_api(existing_row, new_row, header):
     """
     API 호출 없이 로컬에서 변경사항을 비교하는 함수
     """
-    print(f"항목 비교 시작: {existing_row[0].strip()} - {existing_row[3].strip()}")
+    # 디버깅 메시지 제거
+    # print(f"항목 비교 시작: {existing_row[0].strip()} - {existing_row[3].strip()}")
     
     # 번호 + 서비스 요청명 + 게임사 기준으로 매칭
     if existing_row[0].strip() == new_row[0].strip() and existing_row[3].strip() == new_row[3].strip() and existing_row[4].strip() == new_row[4].strip():
@@ -244,26 +245,27 @@ def find_and_compare_changes_without_api(existing_row, new_row, header):
             9: "견적서제출현황"   # 10번째 컬럼: 견적서제출현황 (우리가 추가한 컬럼)
         }
         
-        # 중요 필드 값 직접 출력하여 디버깅
-        print(f"\n*** 중요 필드 비교 ***")
+        # 중요 필드 값 확인하되 상세 출력은 변경 필드만
+        changed_important_fields = []
         for idx, field_name in important_fields.items():
             if idx < len(existing_row) and idx < len(new_row):
                 old_val = existing_row[idx].strip() if idx < len(existing_row) else ""
                 new_val = new_row[idx].strip() if idx < len(new_row) else ""
                 is_changed = old_val != new_val
-                status = "변경됨" if is_changed else "동일"
-                print(f"  {field_name}: {status}")
-                print(f"    - 기존값: '{old_val}'")
-                print(f"    - 새값: '{new_val}'")
                 
                 if is_changed:
+                    changed_important_fields.append(field_name)
                     # 중요 필드는 header 상관없이 우리가 알고 있는 이름으로 지정
                     header_name = header[idx] if idx < len(header) else field_name
                     changes.append(f"- {header_name} : {old_val} → {new_val}")
                     changed_cols.append(header_name)
         
+        # 중요 필드 변경 내용 출력 (있을 경우만)
+        if changed_important_fields:
+            print(f"중요 필드 변경 감지: {', '.join(changed_important_fields)}")
+        
         # 그 외 모든 필드 비교
-        print(f"\n*** 전체 필드 비교 ***")
+        other_changed_fields = []
         for i, (old, new) in enumerate(zip(existing_row, new_row)):
             # 이미 중요 필드로 체크한 것은 건너뜀
             if i in important_fields:
@@ -276,21 +278,19 @@ def find_and_compare_changes_without_api(existing_row, new_row, header):
                 # 비교할 때 공백 제거하고 비교
                 if old_val != new_val:
                     field_name = header[i] if i < len(header) else f"컬럼{i+1}"
-                    print(f"  {field_name} 변경: '{old_val}' → '{new_val}'")
+                    other_changed_fields.append(field_name)
                     changes.append(f"- {field_name} : {old_val} → {new_val}")
                     changed_cols.append(field_name)
         
-        # 변경사항 요약
-        if changes:
-            print(f"\n총 {len(changes)}개 항목 변경 감지:")
-            for change in changes:
-                print(f"  {change}")
-        else:
-            print("\n변경사항 없음")
+        # 그 외 필드 변경 내용 출력 (있을 경우만)
+        if other_changed_fields:
+            print(f"기타 필드 변경 감지: {', '.join(other_changed_fields)}")
             
-        return changes, changed_cols
-    else:
-        print("항목 불일치: 건너뜀")
+        # 변경사항 요약 (있을 경우만)
+        if changes:
+            print(f"총 {len(changes)}개 항목 변경 감지")
+            return changes, changed_cols
+        return None, None
     return None, None
 
 def find_and_compare_changes(sheet, new_row):
@@ -311,38 +311,44 @@ def find_and_compare_changes(sheet, new_row):
             return changes, changed_cols
     return None, None
 
-def update_gsheet(filtered_data, sheet=None, existing=None, existing_keys=None, header=None):
-    """
-    필터링된 데이터를 구글 시트에 업데이트하는 함수
-    sheet, existing, existing_keys, header 매개변수가 제공되면 재사용
-    """
+def update_gsheet(filtered_data):
     try:
-        # 필요한 시트 데이터가 제공되지 않은 경우에만 새로 가져옴
-        if sheet is None or existing is None or existing_keys is None or header is None:
-            sheet = get_gsheet()
-            print("Google 시트 데이터 로드 중...")
-            
-            # 시트 데이터를 한 번만 가져오기
-            existing = sheet.get_all_values()
-            print(f"기존 데이터 {len(existing)-1}개 항목 로드 완료")
-            
-            header = existing[0]
-            
-            # 번호+서비스요청명+게임사 기준으로 키 생성
-            existing_keys = {}  # 키 -> 인덱스 매핑으로 변경
-            for idx, row in enumerate(existing[1:], start=2):
-                if len(row) >= 5:  # 최소 5개 컬럼이 있는지 확인
-                    key = (row[0].strip(), row[3].strip(), row[4].strip())
-                    existing_keys[key] = idx
-            
-            print(f"기존 데이터 키 매핑 완료")
-        else:
-            print("기존 시트 데이터 재사용")
-            
+        sheet = get_gsheet()
+        print("Google 시트 데이터 로드 중...")
+        
+        # 시트 데이터를 한 번만 가져오기
+        existing = sheet.get_all_values()
+        print(f"기존 데이터 {len(existing)-1}개 항목 로드 완료")
+        
+        header = existing[0]
+        header_len = len(header)
+        # 컬럼 수에 따른 마지막 열 문자 계산 (A, B, ... Z, AA, ...)
+        last_col = chr(65 + min(25, header_len - 1))  # Z까지만 처리 (26개)
+        if header_len > 26:
+            last_col = 'A' + chr(65 + (header_len - 1) % 26)  # AA, AB, ...
+
+        # 번호+서비스요청명+게임사 기준으로 키 생성
+        existing_keys = {}  # 키 -> 인덱스 매핑으로 변경
+        existing_data = {}  # 키 -> 행 데이터 매핑 (디버깅용)
+        for idx, row in enumerate(existing[1:], start=2):
+            if len(row) >= 5:  # 최소 5개 컬럼이 있는지 확인
+                key = (row[0].strip(), row[3].strip(), row[4].strip())
+                existing_keys[key] = idx
+                existing_data[key] = row
+        
+        print(f"기존 데이터 키 매핑 완료")
+        
         new_rows = []
         changed_rows = []
         
-        for row in filtered_data:
+        # API 호출 간 지연 시간
+        API_DELAY = 2  # 초
+        
+        for i, row in enumerate(filtered_data):
+            # 처리 중인 항목 표시 (5개 단위로)
+            if i > 0 and i % 5 == 0:
+                print(f"총 {len(filtered_data)}개 중 {i}개 항목 처리 완료...")
+            
             if len(row) < 5:
                 continue
                 
@@ -357,39 +363,64 @@ def update_gsheet(filtered_data, sheet=None, existing=None, existing_keys=None, 
                 if changes:
                     # 변경사항이 있는 경우 업데이트
                     idx = existing_keys[key]  # 해당 행의 인덱스
-                    sheet.update(f'A{idx}:J{idx}', [row[:10]])  # 최대 10개 컬럼까지만 업데이트
+                    
+                    # row 길이가 header보다 짧으면 확장
+                    if len(row) < header_len:
+                        row = row + [''] * (header_len - len(row))
+                    elif len(row) > header_len:
+                        row = row[:header_len]
+                    
+                    # 업데이트 범위 설정
+                    update_range = f'A{idx}:{last_col}{idx}'
+                    
+                    # 최신 API 형식으로 업데이트
+                    sheet.update(values=[row], range_name=update_range)
                     changed_rows.append((row, changes, changed_cols))
                     print(f"항목 {item_id} 업데이트 완료")
                     
                     # API 할당량 초과 방지를 위한 지연
-                    time.sleep(2)
+                    time.sleep(API_DELAY)
             else:
                 # 완전 신규 항목
                 print(f"신규 항목 발견: ID={item_id}")
+                
+                # 행 길이 맞추기
+                if len(row) < header_len:
+                    row = row + [''] * (header_len - len(row))
+                elif len(row) > header_len:
+                    row = row[:header_len]
+                
+                # 신규 행 요약 출력 (간소화)
+                print(f"신규 항목 {item_id} 추가 중...")
+                
+                # 행 추가
                 sheet.append_row(row)
                 new_rows.append(row)
                 print(f"신규 항목 {item_id} 추가 완료")
                 
                 # API 할당량 초과 방지를 위한 지연
-                time.sleep(2)
-                
-                # 메모리상의 기존 데이터도 업데이트 (다음 페이지에서 중복 추가 방지)
-                existing.append(row)
-                existing_keys[key] = len(existing)
+                time.sleep(API_DELAY)
         
-        return new_rows, changed_rows, sheet, existing, existing_keys, header
+        print("\n===== 시트 업데이트 결과 =====")
+        if new_rows:
+            print(f'{len(new_rows)}건 신규 업데이트 완료')
+        if changed_rows:
+            print(f'{len(changed_rows)}건 변경 업데이트 완료')
+        if not new_rows and not changed_rows:
+            print('신규/변경 업데이트 없음')
+        return new_rows, changed_rows
         
     except gspread.exceptions.APIError as e:
         if "429" in str(e):
             print("Google Sheets API 할당량이 초과되었습니다. 잠시 후 다시 시도합니다.")
             time.sleep(60)  # 1분 대기 후 재시도
-            return update_gsheet(filtered_data, sheet, existing, existing_keys, header)  # 재귀적으로 다시 시도
+            return update_gsheet(filtered_data)  # 재귀적으로 다시 시도
         else:
             print(f"Google Sheets API 오류: {e}")
-            return [], [], sheet, existing, existing_keys, header
+            return [], []
     except Exception as e:
         print(f"시트 업데이트 중 오류 발생: {e}")
-        return [], [], sheet, existing, existing_keys, header
+        return [], []
 
 def format_estimate_details(estimate_str):
     """
@@ -602,21 +633,6 @@ def main():
         all_new_rows = []  # 모든 신규 행 저장
         all_changed_rows = []  # 모든 변경 행 저장
         
-        # 구글 시트 데이터를 한 번만 불러오기
-        print("Google 시트 초기 데이터 로드 중...")
-        sheet = get_gsheet()
-        existing = sheet.get_all_values()
-        header = existing[0]
-        
-        # 번호+서비스요청명+게임사 기준으로 키 생성
-        existing_keys = {}  # 키 -> 인덱스 매핑으로 변경
-        for idx, row in enumerate(existing[1:], start=2):
-            if len(row) >= 5:  # 최소 5개 컬럼이 있는지 확인
-                key = (row[0].strip(), row[3].strip(), row[4].strip())
-                existing_keys[key] = idx
-        
-        print(f"기존 데이터 {len(existing)-1}개 항목 로드 완료")
-        
         # 기본 URL 설정
         driver.get(SERVICE_REQ_URL)
         print(f"서비스 요청 페이지 접속")
@@ -632,55 +648,42 @@ def main():
             if current_page > 1:
                 # JavaScript 함수로 페이지 이동
                 try:
-                    print(f"JavaScript go_Page({current_page}) 함수 호출로 페이지 {current_page}로 이동 시도...")
+                    print(f"페이지 {current_page}로 이동 중...")
                     driver.execute_script(f"go_Page({current_page})")
                     time.sleep(5)  # 페이지 전환 대기 (충분한 시간 확보)
                     
-                    # 페이지 전환 성공 여부 확인
+                    # 페이지 번호 확인 (현재 활성화된 페이지가 맞는지)
                     try:
-                        # 테이블이 존재하는지 확인
-                        WebDriverWait(driver, 10).until(
-                            EC.presence_of_element_located((By.ID, "dataList"))
-                        )
-                        
-                        # 현재 페이지 번호 확인 (<strong> 태그로 표시됨)
-                        try:
-                            current_page_element = driver.find_element(By.CSS_SELECTOR, "div.paging_area strong")
-                            if current_page_element:
-                                current_page_number = current_page_element.text.strip()
-                                print(f"현재 활성화된 페이지: {current_page_number}")
-                                
-                                # 페이지 번호가 일치하지 않으면 경고
-                                if current_page_number != str(current_page):
-                                    print(f"경고: 요청한 페이지({current_page})와 실제 페이지({current_page_number})가 다릅니다")
-                        except Exception as e:
-                            # 페이지 번호 확인에 실패해도 테이블이 있으면 계속 진행
-                            print(f"현재 페이지 번호 확인 실패: {e}")
+                        active_page = driver.find_element(By.CSS_SELECTOR, ".pagination .active")
+                        if active_page:
+                            active_page_number = active_page.text.strip()
                             
-                        print(f"페이지 {current_page}로 이동 성공 (테이블 확인됨)")
-                    except Exception as e:
-                        print(f"페이지 {current_page} 이동 후 테이블 확인 실패: {e}")
+                            # 페이지 번호가 일치하지 않으면 경고
+                            if active_page_number != str(current_page):
+                                print(f"경고: 요청한 페이지({current_page})와 실제 페이지({active_page_number})가 다릅니다.")
+                    except Exception:
+                        # 경고 메시지 간소화
+                        pass
                 except Exception as e:
-                    print(f"JavaScript 페이지 이동 실패: {e}")
+                    print(f"페이지 이동 실패: {e}")
                     print("더 이상 페이지를 처리할 수 없습니다. 진행 중단.")
                     break
             
             # 매 페이지마다 테이블 요소를 새로 찾는다
             try:
-                print("테이블 요소 찾는 중...")
+                print("테이블 데이터 로드 중...")
                 table = WebDriverWait(driver, 15).until(
                     EC.presence_of_element_located((By.ID, "dataList"))
                 )
-                print("테이블 요소 찾기 성공")
                 
                 # 현재 페이지의 테이블 데이터 추출
                 try:
                     rows = table.find_elements(By.TAG_NAME, 'tr')
-                    print(f"테이블에서 {len(rows)}개 행 발견")
-                    
                     if len(rows) <= 1:  # 헤더만 있고 데이터가 없는 경우
-                        print(f"페이지 {current_page}에 데이터가 없습니다. 크롤링 종료.")
+                        print(f"페이지에 데이터가 없습니다. 크롤링 종료.")
                         break
+                    
+                    print(f"테이블에서 {len(rows)-1}개 항목 발견")
                     
                     # 현재 페이지 데이터 수집
                     page_data = []
@@ -696,7 +699,6 @@ def main():
                             
                             # 행 인덱스가 유효한지 확인
                             if i >= len(current_rows):
-                                print(f"행 인덱스 {i}가 현재 행 수 {len(current_rows)}를 초과합니다. 건너뜁니다.")
                                 continue
                             
                             row = current_rows[i]
@@ -728,16 +730,15 @@ def main():
                                         estimate_status = "없음"
                                 else:
                                     estimate_status = "없음"
-                            except Exception as e:
-                                print(f"견적서 상세 정보 가져오기 실패: {e}")
+                            except Exception:
+                                # 에러 메시지 간소화
                                 estimate_status = "없음"
                             
                             row_data.append(estimate_status)  # 견적서제출현황 컬럼 추가
                             page_data.append(row_data)
-                            print(f"행 {i+1} 처리 완료: {row_data[0] if len(row_data) > 0 else '정보 없음'}")
                             
-                        except Exception as e:
-                            print(f"행 {i+1} 데이터 추출 중 오류: {e}")
+                        except Exception:
+                            # 에러 메시지 간소화
                             continue
                     
                     print(f"페이지 {current_page}에서 {len(page_data)}개 항목 추출 완료")
@@ -748,11 +749,9 @@ def main():
                     
                     # 필터링된 데이터가 있는 경우에만 시트 업데이트 진행
                     if filtered_page_data:
-                        # 현재 페이지 데이터에 대해 시트 업데이트 진행 (기존 시트 데이터 재사용)
+                        # 현재 페이지 데이터에 대해 시트 업데이트 진행
                         print(f"페이지 {current_page} 데이터 시트 업데이트 시작...")
-                        new_rows, changed_rows, sheet, existing, existing_keys, header = update_gsheet(
-                            filtered_page_data, sheet, existing, existing_keys, header
-                        )
+                        new_rows, changed_rows = update_gsheet(filtered_page_data)
                         
                         # 결과 저장
                         if new_rows:
@@ -769,9 +768,9 @@ def main():
                     current_page += 1
                     
                 except Exception as e:
-                    print(f"테이블 행 처리 중 오류 발생: {e}")
+                    print(f"페이지 {current_page} 처리 중 오류: {e}")
                     if current_page > 1:
-                        print("이전에 수집된 데이터로 계속 진행합니다.")
+                        print("이전에 수집된 데이터로 계속 진행")
                         current_page += 1
                     else:
                         print("첫 페이지 처리 실패, 처리 중단")
@@ -779,9 +778,9 @@ def main():
                         return
                 
             except Exception as e:
-                print(f"테이블 찾기 중 오류 발생: {e}")
+                print(f"테이블 로딩 실패: {e}")
                 if current_page > 1:
-                    print("이전에 수집된 데이터로 계속 진행합니다.")
+                    print("이전에 수집된 데이터로 계속 진행")
                     current_page += 1
                 else:
                     print("첫 페이지 처리 실패, 처리 중단")
@@ -795,12 +794,15 @@ def main():
         
         # 신규/변경된 게임사별 담당자 정보 추출
         company_contacts = get_new_company_contacts(all_new_rows + [r[0] for r in all_changed_rows])
-        print('\n--- 신규/변경 업데이트된 게임사별 담당자 정보 ---')
-        for company, info in company_contacts.items():
-            print(f'{company}: {info}')
+        
+        # 담당자 정보가 있는 경우만 출력
+        if company_contacts:
+            print('\n--- 신규/변경 업데이트된 게임사별 담당자 정보 ---')
+            for company, info in company_contacts.items():
+                print(f'{company}: {info["name"]}')
         
         # 이메일 발송 (신규)
-        if all_new_rows:
+        if all_new_rows and company_contacts:
             send_update_emails(company_contacts, all_new_rows)
         
         # 이메일/텔레그램 알림 (변경)
