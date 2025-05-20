@@ -646,8 +646,7 @@ def main():
         
         # 기본 URL 설정
         driver.get(SERVICE_REQ_URL)
-        base_url = driver.current_url
-        print(f"기본 URL: {base_url}")
+        print(f"서비스 요청 페이지 접속")
         
         # 최대 5페이지까지 순차적으로 처리
         MAX_PAGES = 5
@@ -657,11 +656,28 @@ def main():
             
             # 페이지 이동 (첫 페이지는 이미 로드됨)
             if current_page > 1:
-                # URL을 직접 구성하여 다른 페이지로 이동
-                page_url = f"{base_url}?pageIndex={current_page}"
-                print(f"페이지 URL: {page_url}")
-                driver.get(page_url)
-                time.sleep(3)  # 페이지 로딩 대기
+                # JavaScript 함수로 페이지 이동
+                try:
+                    print(f"JavaScript go_Page({current_page}) 함수 호출로 페이지 {current_page}로 이동 시도...")
+                    driver.execute_script(f"go_Page({current_page})")
+                    time.sleep(3)  # 페이지 전환 대기
+                    
+                    # 페이지 번호 확인 (현재 활성화된 페이지가 맞는지)
+                    try:
+                        active_page = driver.find_element(By.CSS_SELECTOR, ".pagination .active")
+                        if active_page:
+                            active_page_number = active_page.text.strip()
+                            print(f"현재 활성화된 페이지: {active_page_number}")
+                            
+                            # 페이지 번호가 일치하지 않으면 경고
+                            if active_page_number != str(current_page):
+                                print(f"경고: 요청한 페이지({current_page})와 실제 페이지({active_page_number})가 다릅니다.")
+                    except Exception as e:
+                        print(f"활성 페이지 확인 실패: {e}")
+                except Exception as e:
+                    print(f"JavaScript 페이지 이동 실패: {e}")
+                    print("이전 페이지 데이터로 계속 진행합니다.")
+                    break
             
             try:
                 # 테이블 찾기
