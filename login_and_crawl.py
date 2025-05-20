@@ -103,11 +103,12 @@ def crawl_service_req_table_with_estimate(driver):
         return []
     
     all_data = []
-    page_num = 1
     MAX_PAGES = 5  # 최대 5페이지까지만 크롤링
     
-    while page_num <= MAX_PAGES:
-        print(f"현재 페이지 {page_num} 크롤링 중...")
+    # 페이지 1부터 MAX_PAGES까지 크롤링
+    for current_page in range(1, MAX_PAGES + 1):
+        print(f"현재 페이지 {current_page} 크롤링 중...")
+        
         # 현재 페이지의 테이블 데이터 추출
         rows = table.find_elements(By.TAG_NAME, 'tr')
         data = []
@@ -132,69 +133,32 @@ def crawl_service_req_table_with_estimate(driver):
         # 현재 페이지 데이터를 전체 데이터에 추가
         all_data.extend(data)
         
-        # 최대 페이지 수에 도달하면 종료
-        if page_num >= MAX_PAGES:
-            print(f"최대 페이지 수({MAX_PAGES})에 도달했습니다.")
-            break
-        
-        # 다음 페이지가 있는지 확인
-        try:
-            # 다음 버튼 찾기
-            next_button = None
-            pagination = WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.CLASS_NAME, "pagination"))
-            )
-            
-            # 다음 페이지로 이동하는 버튼 찾기 (여러 방법 시도)
+        # 다음 페이지로 이동 (다음 페이지가 있을 경우)
+        if current_page < MAX_PAGES:
             try:
-                # 방법 1: "다음" 텍스트를 포함한 링크
-                next_buttons = driver.find_elements(By.XPATH, "//a[contains(text(), '다음')]")
-                if next_buttons:
-                    next_button = next_buttons[0]
-                else:
-                    # 방법 2: ">" 기호를 포함한 링크
-                    next_buttons = driver.find_elements(By.XPATH, "//a[contains(text(), '>')]")
-                    if next_buttons:
-                        next_button = next_buttons[0]
-                    else:
-                        # 방법 3: 현재 페이지 +1 숫자를 가진 링크
-                        links = pagination.find_elements(By.TAG_NAME, "a")
-                        for link in links:
-                            if link.text.strip().isdigit() and int(link.text.strip()) == page_num + 1:
-                                next_button = link
-                                break
+                # JavaScript 함수를 사용하여 다음 페이지로 이동 (go_Page 함수 사용)
+                next_page_num = current_page + 1
+                print(f"JavaScript 함수를 통해 {next_page_num}페이지로 이동 시도...")
+                driver.execute_script(f"go_Page({next_page_num})")
+                
+                # 페이지 로딩 대기
+                WebDriverWait(driver, 15).until(
+                    EC.staleness_of(table)
+                )
+                
+                # 테이블 다시 찾기
+                table = WebDriverWait(driver, 15).until(
+                    EC.presence_of_element_located((By.ID, "dataList"))
+                )
+                
+                # 페이지 완전 로딩을 위해 잠시 대기
+                time.sleep(3)
+                
             except Exception as e:
-                print(f"다음 버튼 찾기 오류: {e}")
-            
-            if not next_button:
-                print("다음 페이지 버튼을 찾을 수 없습니다. 마지막 페이지로 간주합니다.")
+                print(f"다음 페이지({current_page + 1}) 이동 중 오류 발생: {e}")
                 break
-            
-            # 다음 페이지로 이동
-            print(f"다음 페이지({page_num + 1})로 이동 시도...")
-            next_button.click()
-            
-            # 페이지 로딩 대기
-            WebDriverWait(driver, 15).until(
-                EC.staleness_of(table)
-            )
-            
-            # 테이블 다시 찾기
-            table = WebDriverWait(driver, 15).until(
-                EC.presence_of_element_located((By.ID, "dataList"))
-            )
-            
-            # 페이지 번호 증가
-            page_num += 1
-            
-            # 페이지 완전 로딩을 위해 잠시 대기
-            time.sleep(3)  # 대기 시간 늘림
-            
-        except Exception as e:
-            print(f"다음 페이지 이동 중 오류 발생: {e}")
-            break
     
-    print(f"총 {page_num}개 페이지 크롤링 완료, {len(all_data)}개 항목 수집")
+    print(f"총 {min(current_page, MAX_PAGES)}개 페이지 크롤링 완료, {len(all_data)}개 항목 수집")
     return all_data
 
 def filter_2025_deadline(data):
