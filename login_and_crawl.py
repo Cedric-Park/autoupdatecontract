@@ -226,7 +226,25 @@ def get_new_company_contacts(new_rows):
                 company_to_contact[company] = contact_map[company]
     return company_to_contact
 
+def find_and_compare_changes_without_api(existing_row, new_row, header):
+    """
+    API 호출 없이 로컬에서 변경사항을 비교하는 함수
+    """
+    # 번호 + 서비스 요청명 + 게임사 기준으로 매칭
+    if existing_row[0].strip() == new_row[0].strip() and existing_row[3].strip() == new_row[3].strip() and existing_row[4].strip() == new_row[4].strip():
+        changes = []
+        changed_cols = []
+        for i, (old, new) in enumerate(zip(existing_row, new_row)):
+            if i < len(header) and old.strip() != new.strip():
+                changes.append(f"- {header[i]} : {old.strip()} → {new.strip()}")
+                changed_cols.append(header[i])
+        return changes, changed_cols
+    return None, None
+
 def find_and_compare_changes(sheet, new_row):
+    """
+    API 호출을 통해 변경사항을 비교하는 함수 (기존 방식)
+    """
     existing = sheet.get_all_values()
     header = existing[0]  # 첫 행이 컬럼명
     for row in existing[1:]:
@@ -241,69 +259,98 @@ def find_and_compare_changes(sheet, new_row):
             return changes, changed_cols
     return None, None
 
-# update_gsheet 함수에서 신규 row 추가 대신 변경 row는 수정, 변경 내역 반환
-
 def update_gsheet(filtered_data):
-    sheet = get_gsheet()
-    existing = sheet.get_all_values()
-    header = existing[0]
-    header_len = len(header)
-    # 컬럼 수에 따른 마지막 열 문자 계산 (A, B, ... Z, AA, ...)
-    last_col = chr(65 + min(25, header_len - 1))  # Z까지만 처리 (26개)
-    if header_len > 26:
-        last_col = 'A' + chr(65 + (header_len - 1) % 26)  # AA, AB, ...
-
-    # 번호+서비스요청명+게임사 기준으로 키 생성
-    existing_keys = {}  # 키 -> 인덱스 매핑으로 변경
-    for idx, row in enumerate(existing[1:], start=2):
-        key = (row[0].strip(), row[3].strip(), row[4].strip())
-        existing_keys[key] = idx
-    
-    new_rows = []
-    changed_rows = []
-    
-    for row in filtered_data:
-        key = (row[0].strip(), row[3].strip(), row[4].strip())
+    try:
+        sheet = get_gsheet()
+        print("Google 시트 접근 중...")
         
-        if key in existing_keys:
-            # 기존 항목인 경우 - 변경사항이 있는지 확인
-            changes, changed_cols = find_and_compare_changes(sheet, row)
-            if changes:
-                # 변경사항이 있는 경우 업데이트
-                idx = existing_keys[key]  # 해당 행의 인덱스
+        # 시트 데이터를 한 번만 가져오기
+        existing = sheet.get_all_values()
+        print(f"기존 데이터 {len(existing)-1}개 항목 로드 완료")
+        
+        header = existing[0]
+        header_len = len(header)
+        # 컬럼 수에 따른 마지막 열 문자 계산 (A, B, ... Z, AA, ...)
+        last_col = chr(65 + min(25, header_len - 1))  # Z까지만 처리 (26개)
+        if header_len > 26:
+            last_col = 'A' + chr(65 + (header_len - 1) % 26)  # AA, AB, ...
+
+        # 번호+서비스요청명+게임사 기준으로 키 생성
+        existing_keys = {}  # 키 -> 인덱스 매핑으로 변경
+        for idx, row in enumerate(existing[1:], start=2):
+            key = (row[0].strip(), row[3].strip(), row[4].strip())
+            existing_keys[key] = idx
+        
+        new_rows = []
+        changed_rows = []
+        
+        # API 호출 간 지연 시간
+        API_DELAY = 2  # 초
+        
+        for i, row in enumerate(filtered_data):
+            # 처리 중인 항목 표시
+            if i > 0 and i % 10 == 0:
+                print(f"총 {len(filtered_data)}개 중 {i}개 항목 처리 완료...")
                 
-                # row 길이가 header보다 짧으면 확장
+            key = (row[0].strip(), row[3].strip(), row[4].strip())
+            
+            if key in existing_keys:
+                # 기존 항목인 경우 - 변경사항이 있는지 확인
+                changes, changed_cols = find_and_compare_changes_without_api(existing[existing_keys[key]-1], row, header)
+                if changes:
+                    # 변경사항이 있는 경우 업데이트
+                    idx = existing_keys[key]  # 해당 행의 인덱스
+                    
+                    # row 길이가 header보다 짧으면 확장
+                    if len(row) < header_len:
+                        row = row + [''] * (header_len - len(row))
+                    elif len(row) > header_len:
+                        row = row[:header_len]
+                    
+                    # 업데이트 범위 설정
+                    update_range = f'A{idx}:{last_col}{idx}'
+                    
+                    # 최신 API 형식으로 업데이트
+                    sheet.update(values=[row], range_name=update_range)
+                    changed_rows.append((row, changes, changed_cols))
+                    print(f"행 {idx} 업데이트: {changes}")
+                    
+                    # API 할당량 초과 방지를 위한 지연
+                    time.sleep(API_DELAY)
+            else:
+                # 완전 신규 항목
+                # 행 길이 맞추기
                 if len(row) < header_len:
                     row = row + [''] * (header_len - len(row))
                 elif len(row) > header_len:
                     row = row[:header_len]
                 
-                # 업데이트 범위 설정
-                update_range = f'A{idx}:{last_col}{idx}'
+                sheet.append_row(row)
+                new_rows.append(row)
+                print(f"신규 행 추가: {row[0]} - {row[3]} - {row[4]}")
                 
-                # 최신 API 형식으로 업데이트
-                sheet.update(values=[row], range_name=update_range)
-                changed_rows.append((row, changes, changed_cols))
-                print(f"행 {idx} 업데이트: {changes}")
+                # API 할당량 초과 방지를 위한 지연
+                time.sleep(API_DELAY)
+        
+        if new_rows:
+            print(f'{len(new_rows)}건 신규 업데이트 완료')
+        if changed_rows:
+            print(f'{len(changed_rows)}건 변경 업데이트 완료')
+        if not new_rows and not changed_rows:
+            print('신규/변경 업데이트 없음')
+        return new_rows, changed_rows
+        
+    except gspread.exceptions.APIError as e:
+        if "429" in str(e):
+            print("Google Sheets API 할당량이 초과되었습니다. 잠시 후 다시 시도합니다.")
+            time.sleep(60)  # 1분 대기 후 재시도
+            return update_gsheet(filtered_data)  # 재귀적으로 다시 시도
         else:
-            # 완전 신규 항목
-            # 행 길이 맞추기
-            if len(row) < header_len:
-                row = row + [''] * (header_len - len(row))
-            elif len(row) > header_len:
-                row = row[:header_len]
-            
-            sheet.append_row(row)
-            new_rows.append(row)
-            print(f"신규 행 추가: {row[0]} - {row[3]} - {row[4]}")
-    
-    if new_rows:
-        print(f'{len(new_rows)}건 신규 업데이트 완료')
-    if changed_rows:
-        print(f'{len(changed_rows)}건 변경 업데이트 완료')
-    if not new_rows and not changed_rows:
-        print('신규/변경 업데이트 없음')
-    return new_rows, changed_rows
+            print(f"Google Sheets API 오류: {e}")
+            return [], []
+    except Exception as e:
+        print(f"시트 업데이트 중 오류 발생: {e}")
+        return [], []
 
 def format_estimate_details(estimate_str):
     """
