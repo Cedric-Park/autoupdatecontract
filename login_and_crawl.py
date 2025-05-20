@@ -94,14 +94,6 @@ def get_estimate_status(driver, estimate_link):
 
 def crawl_service_req_table_with_estimate(driver):
     driver.get(SERVICE_REQ_URL)
-    try:
-        table = WebDriverWait(driver, 15).until(
-            EC.presence_of_element_located((By.ID, "dataList"))
-        )
-    except Exception as e:
-        print('테이블 영역을 찾지 못했습니다.', e)
-        return []
-    
     all_data = []
     MAX_PAGES = 5  # 최대 5페이지까지만 크롤링
     
@@ -109,54 +101,68 @@ def crawl_service_req_table_with_estimate(driver):
     for current_page in range(1, MAX_PAGES + 1):
         print(f"현재 페이지 {current_page} 크롤링 중...")
         
-        # 현재 페이지의 테이블 데이터 추출
-        rows = table.find_elements(By.TAG_NAME, 'tr')
-        data = []
-        for i, row in enumerate(rows):
-            cols = row.find_elements(By.TAG_NAME, 'td')
-            if not cols or len(cols) < 8:
-                continue
-            row_data = [col.text.strip() for col in cols]
-            # 견적서 제출 건이 1건 이상이면 상세페이지 진입
-            try:
-                estimate_text = cols[5].text.strip()
-                estimate_link = cols[5].find_element(By.TAG_NAME, "a")
-                if estimate_text and estimate_text != "0건":
-                    estimate_status = get_estimate_status(driver, estimate_link)
-                else:
-                    estimate_status = "없음"
-            except Exception:
-                estimate_status = "없음"
-            row_data.append(estimate_status)  # 견적서제출현황 컬럼 추가
-            data.append(row_data)
-        
-        # 현재 페이지 데이터를 전체 데이터에 추가
-        all_data.extend(data)
-        
-        # 다음 페이지로 이동 (다음 페이지가 있을 경우)
-        if current_page < MAX_PAGES:
-            try:
-                # JavaScript 함수를 사용하여 다음 페이지로 이동 (go_Page 함수 사용)
-                next_page_num = current_page + 1
-                print(f"JavaScript 함수를 통해 {next_page_num}페이지로 이동 시도...")
-                driver.execute_script(f"go_Page({next_page_num})")
-                
-                # 페이지 로딩 대기
-                WebDriverWait(driver, 15).until(
-                    EC.staleness_of(table)
-                )
-                
-                # 테이블 다시 찾기
-                table = WebDriverWait(driver, 15).until(
-                    EC.presence_of_element_located((By.ID, "dataList"))
-                )
-                
-                # 페이지 완전 로딩을 위해 잠시 대기
-                time.sleep(3)
-                
-            except Exception as e:
-                print(f"다음 페이지({current_page + 1}) 이동 중 오류 발생: {e}")
+        try:
+            # 각 페이지마다 테이블 새로 찾기
+            table = WebDriverWait(driver, 15).until(
+                EC.presence_of_element_located((By.ID, "dataList"))
+            )
+            
+            # 현재 페이지의 테이블 데이터 추출
+            rows = table.find_elements(By.TAG_NAME, 'tr')
+            data = []
+            for i, row in enumerate(rows):
+                try:
+                    cols = row.find_elements(By.TAG_NAME, 'td')
+                    if not cols or len(cols) < 8:
+                        continue
+                    row_data = [col.text.strip() for col in cols]
+                    # 견적서 제출 건이 1건 이상이면 상세페이지 진입
+                    try:
+                        estimate_text = cols[5].text.strip()
+                        estimate_link = cols[5].find_element(By.TAG_NAME, "a")
+                        if estimate_text and estimate_text != "0건":
+                            estimate_status = get_estimate_status(driver, estimate_link)
+                        else:
+                            estimate_status = "없음"
+                    except Exception:
+                        estimate_status = "없음"
+                    row_data.append(estimate_status)  # 견적서제출현황 컬럼 추가
+                    data.append(row_data)
+                except Exception as e:
+                    print(f"행 데이터 추출 중 오류: {e}")
+                    continue
+            
+            # 현재 페이지 데이터를 전체 데이터에 추가
+            all_data.extend(data)
+            print(f"페이지 {current_page}에서 {len(data)}개 항목 추출 완료")
+            
+            # 다음 페이지로 이동 (다음 페이지가 있을 경우)
+            if current_page < MAX_PAGES:
+                try:
+                    # JavaScript 함수를 사용하여 다음 페이지로 이동 (go_Page 함수 사용)
+                    next_page_num = current_page + 1
+                    print(f"JavaScript 함수를 통해 {next_page_num}페이지로 이동 시도...")
+                    driver.execute_script(f"go_Page({next_page_num})")
+                    
+                    # 페이지 로딩 대기 - 페이지 숫자 변경 확인
+                    WebDriverWait(driver, 15).until(
+                        EC.text_to_be_present_in_element((By.CSS_SELECTOR, ".pagination .active"), str(next_page_num))
+                    )
+                    
+                    # 추가 대기 시간
+                    time.sleep(3)
+                    
+                except Exception as e:
+                    print(f"다음 페이지({current_page + 1}) 이동 중 오류 발생: {e}")
+                    break
+        except Exception as e:
+            print(f"페이지 {current_page} 처리 중 오류 발생: {e}")
+            if current_page > 1:
+                print("이전에 수집된 데이터로 계속 진행합니다.")
                 break
+            else:
+                print("첫 페이지 처리 실패, 빈 데이터 반환")
+                return []
     
     print(f"총 {min(current_page, MAX_PAGES)}개 페이지 크롤링 완료, {len(all_data)}개 항목 수집")
     return all_data
