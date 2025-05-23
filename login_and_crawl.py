@@ -18,14 +18,16 @@ import schedule
 # 로그인 정보
 LOGIN_URL = 'https://gsp.kocca.kr/admin'
 SERVICE_REQ_URL = 'https://gsp.kocca.kr/admin/serviceReq/serviceReqListPage.do'
-USER_ID = 'com2us30'
-USER_PW = 'com2us!@#$'
+USER_ID = None  # 환경 변수에서 가져옴
+USER_PW = None  # 환경 변수에서 가져옴
 
 # 크롬 드라이버 설정
 options = webdriver.ChromeOptions()
 options.add_argument('--headless')  # 브라우저 창을 띄우지 않음
 options.add_argument('--no-sandbox')
 options.add_argument('--disable-dev-shm-usage')
+options.add_argument('--disable-gpu')
+options.add_argument('--window-size=1920,1080')
 
 SHEET_NAME = '게임더하기_계약관리'  # 실제 구글 시트 문서명으로 수정
 WORKSHEET_NAME = '게임더하기_계약_2025'  # 실제 워크시트명으로 수정
@@ -35,32 +37,67 @@ CONTACT_SHEET_NAME = '담당자정보'  # 담당자 정보 시트명
 # .env 파일에서 환경변수 불러오기
 def load_env():
     load_dotenv()
+    global USER_ID, USER_PW, EMAIL_SENDER, EMAIL_APP_PASSWORD
+    USER_ID = os.environ.get('USER_ID', 'com2us30')  # 기본값 제공
+    USER_PW = os.environ.get('USER_PW', 'com2us!@#$')  # 기본값 제공
+    EMAIL_SENDER = os.environ.get('EMAIL_SENDER')
+    EMAIL_APP_PASSWORD = os.environ.get('EMAIL_APP_PASSWORD')
 
 def login():
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    # 환경 변수 로드 확인
+    if USER_ID is None or USER_PW is None:
+        load_env()
+        print(f"로그인 정보 로드: ID={USER_ID}")
+        
+    try:
+        driver = webdriver.Chrome(options=options)
+    except Exception as e:
+        print(f"기본 드라이버 로드 실패: {e}")
+        try:
+            # 백업 방법: 직접 경로 지정
+            chrome_driver_path = "./chromedriver.exe"  # 크롬 드라이버를 프로젝트 폴더에 넣은 경우
+            driver = webdriver.Chrome(service=Service(chrome_driver_path), options=options)
+        except Exception as e:
+            print(f"직접 지정 드라이버 로드 실패: {e}")
+            return None
+    
+    print("브라우저 시작 - 로그인 페이지로 이동 중...")
     driver.get(LOGIN_URL)
-    time.sleep(2)  # 페이지 로딩 대기
-
+    time.sleep(3)  # 페이지 로딩 대기 시간 증가
+    
+    print(f"현재 URL: {driver.current_url}")
+    
     # 로그인 폼이 실제로 존재하는지 체크
     try:
+        # 로그인 폼 찾기 시도
         id_input = driver.find_element(By.ID, 'j_username')
         pw_input = driver.find_element(By.ID, 'j_password')
+        
         # 로그인 폼이 있으면 로그인 시도
+        print("로그인 폼 발견 - 로그인 시도 중...")
         id_input.send_keys(USER_ID)
         pw_input.send_keys(USER_PW)
         pw_input.send_keys(Keys.RETURN)
-        time.sleep(2)
-        print('로그인 시도 완료')
-    except Exception:
-        # 로그인 폼이 없으면 이미 로그인 상태로 간주
-        print('로그인 폼이 없어 이미 로그인 상태로 간주합니다.')
-
+        time.sleep(3)  # 로그인 처리 대기 시간 증가
+    except Exception as e:
+        print(f'로그인 폼 찾기 실패: {e}')
+        # 이미 로그인되어 있는지 확인
+        if 'admin' in driver.current_url and 'login' not in driver.current_url:
+            print('이미 로그인된 상태로 확인됨')
+        else:
+            print('로그인 폼이 없지만 로그인 상태도 아님')
+            driver.save_screenshot('login_error.png')  # 디버깅용 스크린샷
+            driver.quit()
+            return None
+    
     # 로그인 성공 여부를 관리자 페이지 URL로 명확히 확인
+    print(f"로그인 후 URL: {driver.current_url}")
     if 'admin' in driver.current_url and 'login' not in driver.current_url:
         print('로그인 성공!')
         return driver
     else:
         print('로그인 실패 또는 세션 만료!')
+        driver.save_screenshot('login_failed.png')  # 디버깅용 스크린샷
         driver.quit()
         return None
 
@@ -622,20 +659,25 @@ def send_telegram_message(message):
         print("텔레그램 알림 실패:", response.text)
 
 def main():
+    # 환경 변수 로드
     load_env()
-    global EMAIL_SENDER, EMAIL_APP_PASSWORD
-    EMAIL_SENDER = os.environ.get('EMAIL_SENDER')
-    EMAIL_APP_PASSWORD = os.environ.get('EMAIL_APP_PASSWORD')
+    
+    # 브라우저 로그인
+    print("\n===== 크롤링 시작 - 로그인 중 =====")
     driver = login()
     
     if driver:
+        print("\n===== 로그인 성공 - 데이터 수집 시작 =====")
         all_data = []  # 모든 페이지 데이터 저장
-        all_new_rows = []  # 모든 신규 행 저장
-        all_changed_rows = []  # 모든 변경 행 저장
         
-        # 기본 URL 설정
-        driver.get(SERVICE_REQ_URL)
-        print(f"서비스 요청 페이지 접속")
+        # 기본 URL 접속
+        try:
+            driver.get(SERVICE_REQ_URL)
+            print(f"서비스 요청 페이지 접속 성공: {driver.current_url}")
+        except Exception as e:
+            print(f"서비스 요청 페이지 접속 실패: {e}")
+            driver.quit()
+            return
         
         # 최대 5페이지까지 순차적으로 처리
         MAX_PAGES = 5
@@ -661,6 +703,9 @@ def main():
                             # 페이지 번호가 일치하지 않으면 경고
                             if active_page_number != str(current_page):
                                 print(f"경고: 요청한 페이지({current_page})와 실제 페이지({active_page_number})가 다릅니다.")
+                                # 페이지가 일치하지 않으면 건너뛰기
+                                current_page += 1
+                                continue
                     except Exception:
                         # 경고 메시지 간소화
                         pass
@@ -747,21 +792,7 @@ def main():
                     filtered_page_data = filter_2025_deadline(page_data)
                     print(f"페이지 {current_page}에서 2025년 입찰 마감일 항목 {len(filtered_page_data)}개 필터링됨")
                     
-                    # 필터링된 데이터가 있는 경우에만 시트 업데이트 진행
-                    if filtered_page_data:
-                        # 현재 페이지 데이터에 대해 시트 업데이트 진행
-                        print(f"페이지 {current_page} 데이터 시트 업데이트 시작...")
-                        new_rows, changed_rows = update_gsheet(filtered_page_data)
-                        
-                        # 결과 저장
-                        if new_rows:
-                            all_new_rows.extend(new_rows)
-                            print(f"페이지 {current_page}에서 {len(new_rows)}개 신규 항목 추가")
-                        if changed_rows:
-                            all_changed_rows.extend(changed_rows)
-                            print(f"페이지 {current_page}에서 {len(changed_rows)}개 항목 변경")
-                    
-                    # 전체 데이터에 현재 페이지 데이터 추가
+                    # 필터링된 데이터를 전체 데이터에 추가 (중복 처리는 나중에 한번에)
                     all_data.extend(filtered_page_data)
                     
                     # 다음 페이지로
@@ -787,9 +818,33 @@ def main():
                     driver.quit()
                     return
         
+        # 모든 페이지 크롤링 완료 후 중복 데이터 제거
+        print(f"\n===== 중복 데이터 제거 중 =====")
+        # 번호+서비스요청명+게임사를 기준으로 중복 제거
+        seen_keys = set()
+        unique_data = []
+        
+        for row in all_data:
+            if len(row) >= 5:  # 최소 5개 컬럼이 있는지 확인
+                key = (row[0].strip(), row[3].strip(), row[4].strip())
+                if key not in seen_keys:
+                    seen_keys.add(key)
+                    unique_data.append(row)
+        
+        print(f"총 {len(all_data)}개 항목 중 {len(unique_data)}개 고유 항목 필터링됨")
+        print(f"{len(all_data) - len(unique_data)}개 중복 항목 제거됨")
+        
+        # 중복 제거된 데이터로 구글 시트 업데이트 (한 번만 호출)
+        all_new_rows = []
+        all_changed_rows = []
+        
+        if unique_data:
+            print(f"\n===== 시트 업데이트 시작 =====")
+            all_new_rows, all_changed_rows = update_gsheet(unique_data)
+        
         # 모든 페이지 크롤링 완료 후 최종 결과 출력
         print(f"\n===== 크롤링 완료 =====")
-        print(f"총 {len(all_data)}개 항목 수집 (2025년 입찰 마감일)")
+        print(f"총 {len(unique_data)}개 고유 항목 처리 (2025년 입찰 마감일)")
         print(f"총 {len(all_new_rows)}개 신규 항목, {len(all_changed_rows)}개 변경 항목")
         
         # 신규/변경된 게임사별 담당자 정보 추출
@@ -822,17 +877,9 @@ def main():
                 # 텔레그램
                 send_telegram_message(alert_info["telegram_message"])
         
-        # 텔레그램 알림 (신규)
-        for row in all_new_rows:
-            if len(row) >= 5:
-                company = row[4]
-                if company in company_contacts:
-                    to_name = company_contacts[company]['name']
-                    message = f"{to_name}님, 게임사 [{company}]에서 현재 [{row[1]} - {row[3]}] 계약이 업데이트 되었습니다."
-                    send_telegram_message(message)
-        
-        print("\n작업이 완료되었습니다.")
         driver.quit()
+    else:
+        print("로그인 실패, 처리 중단")
 
 if __name__ == '__main__':
     schedule.every(1).hours.do(main)
