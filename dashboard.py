@@ -12,21 +12,25 @@ import re
 class ModernStyle:
     """모던 스타일 설정"""
     def __init__(self):
-        # 다크 테마 색상 팔레트
+        # 더 화려한 다크 테마 색상 팔레트 (Neon/Gaming 스타일)
         self.colors = {
-            'bg_primary': '#1e1e2e',      # 메인 배경 (어두운 보라)
-            'bg_secondary': '#313244',    # 카드 배경 (중간 회색)
-            'bg_tertiary': '#45475a',     # 버튼 배경 (밝은 회색)
-            'accent_blue': '#89b4fa',     # 파란색 액센트
-            'accent_green': '#a6e3a1',    # 초록색 액센트
-            'accent_red': '#f38ba8',      # 빨간색 액센트
-            'accent_orange': '#fab387',   # 주황색 액센트
-            'accent_purple': '#cba6f7',   # 보라색 액센트
-            'text_primary': '#cdd6f4',    # 메인 텍스트
-            'text_secondary': '#a6adc8',  # 보조 텍스트
-            'text_muted': '#6c7086',      # 흐린 텍스트
-            'border': '#585b70',          # 테두리
-            'shadow': '#11111b',          # 그림자
+            'bg_primary': '#0d1117',      # 깊은 검정 배경
+            'bg_secondary': '#161b22',    # 카드 배경 (약간 밝은 검정)
+            'bg_tertiary': '#21262d',     # 입력 필드 배경
+            'accent_blue': '#58a6ff',     # 네온 블루
+            'accent_green': '#3fb950',    # 네온 그린
+            'accent_red': '#f85149',      # 네온 레드
+            'accent_orange': '#ff8c42',   # 네온 오렌지
+            'accent_purple': '#a78bfa',   # 네온 퍼플
+            'accent_cyan': '#39d0d8',     # 네온 시안
+            'accent_pink': '#ff6bb3',     # 네온 핑크
+            'text_primary': '#f0f6fc',    # 밝은 흰색 텍스트
+            'text_secondary': '#8b949e',  # 회색 텍스트
+            'text_muted': '#6e7681',      # 흐린 텍스트
+            'border': '#30363d',          # 테두리
+            'shadow': '#000000',          # 그림자
+            'gradient_start': '#1a1a2e',  # 그라데이션 시작
+            'gradient_end': '#16213e',    # 그라데이션 끝
         }
     
     def configure_ttk_style(self):
@@ -39,8 +43,13 @@ class ModernStyle:
         # Label 스타일
         style.configure('Title.TLabel', 
                        background=self.colors['bg_primary'],
-                       foreground=self.colors['accent_blue'],
-                       font=('Segoe UI', 20, 'bold'))
+                       foreground=self.colors['accent_cyan'],
+                       font=('Segoe UI', 24, 'bold'))
+        
+        style.configure('Subtitle.TLabel',
+                       background=self.colors['bg_primary'],
+                       foreground=self.colors['accent_purple'],
+                       font=('Segoe UI', 16, 'italic'))
         
         style.configure('Header.TLabel',
                        background=self.colors['bg_secondary'],
@@ -55,95 +64,96 @@ class ModernStyle:
         style.configure('Success.TLabel',
                        background=self.colors['bg_secondary'],
                        foreground=self.colors['accent_green'],
-                       font=('Segoe UI', 12, 'bold'))
+                       font=('Segoe UI', 14, 'bold'))
         
         style.configure('Error.TLabel',
                        background=self.colors['bg_secondary'],
                        foreground=self.colors['accent_red'],
-                       font=('Segoe UI', 12, 'bold'))
+                       font=('Segoe UI', 14, 'bold'))
         
         style.configure('Running.TLabel',
                        background=self.colors['bg_secondary'],
                        foreground=self.colors['accent_orange'],
-                       font=('Segoe UI', 12, 'bold'))
+                       font=('Segoe UI', 14, 'bold'))
         
         # Frame 스타일 - 기본 TLabelFrame 수정
         style.configure('TLabelFrame',
                        background=self.colors['bg_secondary'],
-                       foreground=self.colors['text_primary'],
+                       foreground=self.colors['accent_blue'],
                        borderwidth=2,
                        relief='flat',
-                       font=('Segoe UI', 11, 'bold'))
+                       font=('Segoe UI', 12, 'bold'))
         
         style.configure('TLabelFrame.Label',
                        background=self.colors['bg_secondary'],
-                       foreground=self.colors['text_primary'],
-                       font=('Segoe UI', 11, 'bold'))
+                       foreground=self.colors['accent_blue'],
+                       font=('Segoe UI', 12, 'bold'))
         
         style.configure('TFrame',
                        background=self.colors['bg_primary'],
                        borderwidth=0)
         
-        # Button 스타일
+        # Button 스타일 - 더 화려하게
         style.configure('Primary.TButton',
                        background=self.colors['accent_blue'],
                        foreground='white',
-                       borderwidth=0,
+                       borderwidth=2,
                        focuscolor='none',
-                       font=('Segoe UI', 10, 'bold'),
-                       padding=(15, 8))
+                       font=('Segoe UI', 11, 'bold'),
+                       padding=(20, 10))
         
         style.map('Primary.TButton',
-                  background=[('active', '#74c0fc'), ('pressed', '#339af0')])
+                  background=[('active', self.colors['accent_cyan']), 
+                             ('pressed', self.colors['accent_purple'])])
         
         style.configure('Success.TButton',
                        background=self.colors['accent_green'],
                        foreground='white',
-                       borderwidth=0,
+                       borderwidth=2,
                        focuscolor='none',
-                       font=('Segoe UI', 10, 'bold'),
-                       padding=(15, 8))
+                       font=('Segoe UI', 11, 'bold'),
+                       padding=(20, 10))
         
         style.map('Success.TButton',
-                  background=[('active', '#8ce99a'), ('pressed', '#51cf66')])
+                  background=[('active', '#4ade80'), ('pressed', '#22c55e')])
         
         style.configure('Danger.TButton',
                        background=self.colors['accent_red'],
                        foreground='white',
-                       borderwidth=0,
+                       borderwidth=2,
                        focuscolor='none',
-                       font=('Segoe UI', 10, 'bold'),
-                       padding=(15, 8))
+                       font=('Segoe UI', 11, 'bold'),
+                       padding=(20, 10))
         
         style.map('Danger.TButton',
-                  background=[('active', '#ffc9de'), ('pressed', '#e64980')])
+                  background=[('active', self.colors['accent_pink']), ('pressed', '#dc2626')])
         
         style.configure('Warning.TButton',
                        background=self.colors['accent_orange'],
                        foreground='white',
-                       borderwidth=0,
+                       borderwidth=2,
                        focuscolor='none',
-                       font=('Segoe UI', 10, 'bold'),
-                       padding=(15, 8))
+                       font=('Segoe UI', 11, 'bold'),
+                       padding=(20, 10))
         
         style.map('Warning.TButton',
-                  background=[('active', '#ffd8a8'), ('pressed', '#fd7e14')])
+                  background=[('active', '#fbbf24'), ('pressed', '#f59e0b')])
         
         # Combobox 스타일
         style.configure('Modern.TCombobox',
                        fieldbackground=self.colors['bg_tertiary'],
                        background=self.colors['bg_tertiary'],
                        foreground=self.colors['text_primary'],
-                       borderwidth=1,
-                       lightcolor=self.colors['border'],
-                       darkcolor=self.colors['border'],
+                       borderwidth=2,
+                       lightcolor=self.colors['accent_blue'],
+                       darkcolor=self.colors['accent_blue'],
                        font=('Segoe UI', 10))
         
         # Checkbutton 스타일
         style.configure('Modern.TCheckbutton',
                        background=self.colors['bg_secondary'],
                        foreground=self.colors['text_secondary'],
-                       focuscolor='none',
+                       focuscolor=self.colors['accent_purple'],
                        font=('Segoe UI', 10))
         
         return style
@@ -190,7 +200,7 @@ class GameDashboard:
         self.update_status()
         
         # 환영 토스트 표시
-        self.root.after(1000, lambda: self.show_toast("🎉 모던 대시보드에 오신 것을 환영합니다!", "success"))
+        self.root.after(1000, lambda: self.show_toast("🎮 NEON 게이밍 대시보드에 오신 것을 환영합니다! ⚡", "success"))
     
     def load_config(self):
         """설정 파일 로드"""
@@ -224,18 +234,22 @@ class GameDashboard:
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
         # 타이틀 섹션 (더 크고 세련되게)
-        title_frame = tk.Frame(main_frame, bg=self.style_manager.colors['bg_primary'])
+        title_frame = tk.Frame(main_frame, bg=self.style_manager.colors['bg_primary'], relief='flat')
         title_frame.grid(row=0, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 30))
         
+        # 메인 타이틀 (더 크고 네온 느낌)
         title_label = ttk.Label(title_frame, text="🎮 게임더하기 계약 관리", 
                                style='Title.TLabel')
-        title_label.pack()
+        title_label.pack(pady=(10, 5))
         
-        subtitle_label = ttk.Label(title_frame, text="자동화 대시보드 v2.0 Modern", 
-                                  font=('Segoe UI', 14), 
-                                  background=self.style_manager.colors['bg_primary'],
-                                  foreground=self.style_manager.colors['text_muted'])
-        subtitle_label.pack()
+        # 서브타이틀 (네온 퍼플)
+        subtitle_label = ttk.Label(title_frame, text="🚀 자동화 대시보드 v2.0 NEON EDITION 🚀", 
+                                  style='Subtitle.TLabel')
+        subtitle_label.pack(pady=(0, 10))
+        
+        # 구분선 추가 (네온 효과)
+        separator_frame = tk.Frame(title_frame, height=3, bg=self.style_manager.colors['accent_cyan'])
+        separator_frame.pack(fill='x', padx=50, pady=(5, 10))
         
         # === 상태 카드 ===
         status_card = ttk.LabelFrame(main_frame, text="📊 실행 상태", padding="20")
@@ -249,11 +263,11 @@ class GameDashboard:
         indicator_frame = tk.Frame(status_container, bg=self.style_manager.colors['bg_secondary'])
         indicator_frame.grid(row=0, column=0, sticky=(tk.W, tk.E))
         
-        # 상태 도트 (시각적 인디케이터)
-        self.status_dot = tk.Label(indicator_frame, text="●", font=('Segoe UI', 20),
+        # 상태 도트 (시각적 인디케이터) - 더 크고 네온 느낌
+        self.status_dot = tk.Label(indicator_frame, text="●", font=('Segoe UI', 30),
                                   bg=self.style_manager.colors['bg_secondary'],
                                   fg=self.style_manager.colors['accent_red'])
-        self.status_dot.grid(row=0, column=0, padx=(0, 10))
+        self.status_dot.grid(row=0, column=0, padx=(0, 15))
         
         self.status_label = ttk.Label(indicator_frame, text="🔴 중지됨", 
                                      style='Error.TLabel')
@@ -406,13 +420,14 @@ class GameDashboard:
         self.log_text = tk.Text(log_container, height=10, wrap=tk.WORD,
                                bg=self.style_manager.colors['bg_tertiary'],
                                fg=self.style_manager.colors['text_primary'],
-                               font=('Consolas', 9),
-                               insertbackground=self.style_manager.colors['accent_blue'],
-                               selectbackground=self.style_manager.colors['accent_blue'],
+                               font=('JetBrains Mono', 9),
+                               insertbackground=self.style_manager.colors['accent_cyan'],
+                               selectbackground=self.style_manager.colors['accent_purple'],
                                selectforeground='white',
-                               borderwidth=0,
-                               highlightthickness=1,
-                               highlightcolor=self.style_manager.colors['accent_blue'])
+                               borderwidth=2,
+                               highlightthickness=2,
+                               highlightcolor=self.style_manager.colors['accent_blue'],
+                               relief='flat')
         
         scrollbar = ttk.Scrollbar(log_container, orient=tk.VERTICAL, command=self.log_text.yview)
         self.log_text.configure(yscrollcommand=scrollbar.set)
@@ -437,8 +452,9 @@ class GameDashboard:
         main_frame.rowconfigure(5, weight=1)  # 로그 영역만 확장
         
         # 초기 로그 메시지
-        self.add_log("[START] 모던 대시보드 v2.0이 시작되었습니다.")
-        self.add_log("[INFO] 새로운 UI 디자인과 향상된 기능을 경험해보세요!")
+        self.add_log("[START] 🎮 NEON 게이밍 대시보드가 시작되었습니다!")
+        self.add_log("[INFO] 🌟 완전히 새로운 네온 스타일 UI를 경험해보세요!")
+        self.add_log("[SYSTEM] 🚀 모든 시스템이 준비되었습니다.")
     
     def clean_log_message(self, message):
         """로그 메시지에서 이모지 제거 (대시보드 표시용)"""
@@ -819,7 +835,7 @@ class GameDashboard:
                 bg_color = self.style_manager.colors['accent_orange']
                 icon = "⚠️"
             else:  # info
-                bg_color = self.style_manager.colors['accent_blue']
+                bg_color = self.style_manager.colors['accent_cyan']
                 icon = "ℹ️"
             
             # 토스트 프레임
