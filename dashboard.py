@@ -228,196 +228,203 @@ class GameDashboard:
             json.dump(config, f, ensure_ascii=False, indent=2)
     
     def create_widgets(self):
-        """모던 UI 위젯 생성"""
-        # 메인 프레임 (패딩과 색상 개선)
-        main_frame = ttk.Frame(self.root, padding="20")
+        """깔끔하게 정리된 UI 위젯 생성"""
+        # 메인 프레임 (일관된 패딩)
+        main_frame = ttk.Frame(self.root, padding="25")
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
-        # 타이틀 섹션 (더 크고 세련되게)
-        title_frame = tk.Frame(main_frame, bg=self.style_manager.colors['bg_primary'], relief='flat')
-        title_frame.grid(row=0, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 30))
+        # 타이틀 섹션 (중앙 정렬)
+        title_frame = tk.Frame(main_frame, bg=self.style_manager.colors['bg_primary'])
+        title_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 25))
         
-        # 메인 타이틀 (더 크고 네온 느낌)
+        # 메인 타이틀
         title_label = ttk.Label(title_frame, text="🎮 게임더하기 계약 관리", 
                                style='Title.TLabel')
-        title_label.pack(pady=(10, 5))
+        title_label.pack(pady=(15, 5))
         
-        # 서브타이틀 (네온 퍼플)
+        # 서브타이틀
         subtitle_label = ttk.Label(title_frame, text="🚀 자동화 대시보드 v2.0 NEON EDITION 🚀", 
                                   style='Subtitle.TLabel')
-        subtitle_label.pack(pady=(0, 10))
+        subtitle_label.pack(pady=(0, 15))
         
-        # 구분선 추가 (네온 효과)
+        # 구분선
         separator_frame = tk.Frame(title_frame, height=3, bg=self.style_manager.colors['accent_cyan'])
-        separator_frame.pack(fill='x', padx=50, pady=(5, 10))
+        separator_frame.pack(fill='x', padx=100, pady=(5, 15))
         
         # === 상태 카드 ===
-        status_card = ttk.LabelFrame(main_frame, text="📊 실행 상태", padding="20")
-        status_card.grid(row=1, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 20))
+        status_card = ttk.LabelFrame(main_frame, text="📊 실행 상태", padding="25")
+        status_card.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(0, 15), ipady=10)
         
-        # 상태 표시를 더 시각적으로
+        # 상태 표시 컨테이너
         status_container = tk.Frame(status_card, bg=self.style_manager.colors['bg_secondary'])
-        status_container.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        status_container.pack(fill='x', pady=(0, 15))
         
-        # 상태 인디케이터 추가
+        # 상태 인디케이터 (중앙 정렬)
         indicator_frame = tk.Frame(status_container, bg=self.style_manager.colors['bg_secondary'])
-        indicator_frame.grid(row=0, column=0, sticky=(tk.W, tk.E))
+        indicator_frame.pack(pady=10)
         
-        # 상태 도트 (시각적 인디케이터) - 더 크고 네온 느낌
-        self.status_dot = tk.Label(indicator_frame, text="●", font=('Segoe UI', 30),
+        # 상태 도트와 라벨을 한 줄에 중앙 정렬
+        self.status_dot = tk.Label(indicator_frame, text="●", font=('Segoe UI', 25),
                                   bg=self.style_manager.colors['bg_secondary'],
                                   fg=self.style_manager.colors['accent_red'])
-        self.status_dot.grid(row=0, column=0, padx=(0, 15))
+        self.status_dot.pack(side='left', padx=(0, 10))
         
         self.status_label = ttk.Label(indicator_frame, text="🔴 중지됨", 
                                      style='Error.TLabel')
-        self.status_label.grid(row=0, column=1, sticky=tk.W)
+        self.status_label.pack(side='left')
         
-        # 정보 라벨들을 더 깔끔하게
+        # 정보 표시 (깔끔하게 정렬)
         info_frame = tk.Frame(status_card, bg=self.style_manager.colors['bg_secondary'])
-        info_frame.grid(row=1, column=0, sticky=(tk.W, tk.E))
+        info_frame.pack(fill='x', pady=5)
         
         self.last_exec_label = ttk.Label(info_frame, text="마지막 실행: 없음", 
                                         style='Body.TLabel')
-        self.last_exec_label.grid(row=0, column=0, sticky=tk.W, pady=3)
+        self.last_exec_label.pack(pady=2)
         
         self.next_exec_label = ttk.Label(info_frame, text="다음 실행: 없음", 
                                         style='Body.TLabel')
-        self.next_exec_label.grid(row=1, column=0, sticky=tk.W, pady=3)
+        self.next_exec_label.pack(pady=2)
         
         self.countdown_label = ttk.Label(info_frame, text="", 
                                         style='Body.TLabel',
                                         font=('Segoe UI', 10, 'italic'))
-        self.countdown_label.grid(row=2, column=0, sticky=tk.W, pady=3)
+        self.countdown_label.pack(pady=2)
         
         # === 제어 버튼 카드 ===
-        control_card = ttk.LabelFrame(main_frame, text="🎮 제어", padding="20")
-        control_card.grid(row=2, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 20))
+        control_card = ttk.LabelFrame(main_frame, text="🎮 제어", padding="25")
+        control_card.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(0, 15), ipady=10)
         
-        # 버튼들을 그리드로 더 깔끔하게 배치
-        button_frame = tk.Frame(control_card, bg=self.style_manager.colors['bg_secondary'])
-        button_frame.grid(row=0, column=0, sticky=(tk.W, tk.E))
+        # 버튼 컨테이너 (완벽 중앙 정렬)
+        button_container = tk.Frame(control_card, bg=self.style_manager.colors['bg_secondary'])
+        button_container.pack(expand=True)
         
-        # 버튼 그룹 중앙 정렬
-        button_frame.grid_columnconfigure(0, weight=1)
-        button_frame.grid_columnconfigure(3, weight=1)
+        # 첫 번째 줄 버튼들 (동일한 크기로 나란히)
+        button_row1 = tk.Frame(button_container, bg=self.style_manager.colors['bg_secondary'])
+        button_row1.pack(pady=(0, 10))
         
-        self.start_btn = ttk.Button(button_frame, text="▶️ 자동 실행 시작", 
+        self.start_btn = ttk.Button(button_row1, text="▶️ 자동 실행 시작", 
                                    command=self.start_scheduler, 
-                                   style='Success.TButton', width=18)
-        self.start_btn.grid(row=0, column=1, padx=5, pady=5)
+                                   style='Success.TButton', width=20)
+        self.start_btn.pack(side='left', padx=10)
         
-        self.stop_btn = ttk.Button(button_frame, text="⏹️ 자동 실행 중지", 
+        self.stop_btn = ttk.Button(button_row1, text="⏹️ 자동 실행 중지", 
                                   command=self.stop_scheduler, 
-                                  style='Danger.TButton', width=18)
-        self.stop_btn.grid(row=0, column=2, padx=5, pady=5)
+                                  style='Danger.TButton', width=20)
+        self.stop_btn.pack(side='left', padx=10)
         
-        self.manual_btn = ttk.Button(button_frame, text="🚀 즉시 실행", 
+        # 두 번째 줄 버튼 (중앙 정렬)
+        button_row2 = tk.Frame(button_container, bg=self.style_manager.colors['bg_secondary'])
+        button_row2.pack()
+        
+        self.manual_btn = ttk.Button(button_row2, text="🚀 즉시 실행", 
                                     command=self.manual_execution, 
-                                    style='Warning.TButton', width=18)
-        self.manual_btn.grid(row=1, column=1, columnspan=2, pady=(5, 0))
+                                    style='Warning.TButton', width=42)
+        self.manual_btn.pack()
         
         # === 설정 카드 ===
-        settings_card = ttk.LabelFrame(main_frame, text="⚙️ 설정", padding="20")
-        settings_card.grid(row=3, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 20))
+        settings_card = ttk.LabelFrame(main_frame, text="⚙️ 설정", padding="25")
+        settings_card.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(0, 15), ipady=10)
         
-        # 실행 주기 설정을 더 세련되게
-        interval_frame = tk.Frame(settings_card, bg=self.style_manager.colors['bg_secondary'])
-        interval_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        # 설정 컨테이너
+        settings_container = tk.Frame(settings_card, bg=self.style_manager.colors['bg_secondary'])
+        settings_container.pack(fill='x')
         
-        interval_frame.grid_columnconfigure(4, weight=1)  # 여백 추가
+        # 실행 주기 설정 (중앙 정렬)
+        interval_row = tk.Frame(settings_container, bg=self.style_manager.colors['bg_secondary'])
+        interval_row.pack(pady=(0, 15))
         
-        ttk.Label(interval_frame, text="실행 주기:", style='Header.TLabel').grid(row=0, column=0, sticky=tk.W)
+        ttk.Label(interval_row, text="실행 주기:", style='Header.TLabel').pack(side='left', padx=(0, 10))
         
         self.interval_var = tk.StringVar(value=str(self.config.get('execution_interval', 60)))
-        interval_combo = ttk.Combobox(interval_frame, textvariable=self.interval_var, 
+        interval_combo = ttk.Combobox(interval_row, textvariable=self.interval_var, 
                                      values=['15', '30', '60', '120', '180'], 
                                      style='Modern.TCombobox', width=8, state='readonly')
-        interval_combo.grid(row=0, column=1, padx=(10, 5))
+        interval_combo.pack(side='left', padx=5)
         
-        ttk.Label(interval_frame, text="분", style='Body.TLabel').grid(row=0, column=2, sticky=tk.W)
+        ttk.Label(interval_row, text="분", style='Body.TLabel').pack(side='left', padx=(5, 20))
         
-        save_btn = ttk.Button(interval_frame, text="💾 설정 저장", 
+        save_btn = ttk.Button(interval_row, text="💾 설정 저장", 
                              command=self.save_settings, 
-                             style='Primary.TButton', width=12)
-        save_btn.grid(row=0, column=3, padx=(20, 0))
+                             style='Primary.TButton', width=15)
+        save_btn.pack(side='left')
         
-        # 즉시 실행 옵션
+        # 즉시 실행 옵션 (중앙 정렬)
         self.immediate_start_var = tk.BooleanVar(value=self.config.get('immediate_start', True))
-        immediate_check = ttk.Checkbutton(settings_card, text="자동 실행 시작 시 즉시 1회 실행", 
+        immediate_check = ttk.Checkbutton(settings_container, text="자동 실행 시작 시 즉시 1회 실행", 
                                          variable=self.immediate_start_var,
                                          style='Modern.TCheckbutton')
-        immediate_check.grid(row=1, column=0, sticky=tk.W)
+        immediate_check.pack()
         
         # === 통계 카드 ===
-        stats_card = ttk.LabelFrame(main_frame, text="📈 실행 통계", padding="20")
-        stats_card.grid(row=4, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 20))
+        stats_card = ttk.LabelFrame(main_frame, text="📈 실행 통계", padding="25")
+        stats_card.grid(row=4, column=0, sticky=(tk.W, tk.E), pady=(0, 15), ipady=10)
         
-        # 통계를 시각적으로 표시
+        # 통계 컨테이너
         stats_container = tk.Frame(stats_card, bg=self.style_manager.colors['bg_secondary'])
-        stats_container.grid(row=0, column=0, sticky=(tk.W, tk.E))
+        stats_container.pack(fill='x')
         
         # 통계 메인 라벨
         self.stats_label = ttk.Label(stats_container, text="실행 기록 없음", 
                                     style='Header.TLabel')
-        self.stats_label.grid(row=0, column=0, sticky=tk.W, pady=(0, 10))
+        self.stats_label.pack(pady=(0, 15))
         
-        # 프로그레스 바 스타일 (성공률 표시용)
+        # 프로그레스 바 스타일
         self.style.configure('Success.Horizontal.TProgressbar',
                            background=self.style_manager.colors['accent_green'],
                            troughcolor=self.style_manager.colors['bg_tertiary'],
-                           borderwidth=0,
+                           borderwidth=2,
                            lightcolor=self.style_manager.colors['accent_green'],
                            darkcolor=self.style_manager.colors['accent_green'])
         
-        # 성공률 프로그레스 바
-        progress_frame = tk.Frame(stats_container, bg=self.style_manager.colors['bg_secondary'])
-        progress_frame.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(5, 0))
+        # 성공률 프로그레스 바 (중앙 정렬)
+        progress_container = tk.Frame(stats_container, bg=self.style_manager.colors['bg_secondary'])
+        progress_container.pack()
         
-        ttk.Label(progress_frame, text="성공률:", 
-                 style='Body.TLabel').grid(row=0, column=0, sticky=tk.W, padx=(0, 10))
+        ttk.Label(progress_container, text="성공률:", 
+                 style='Body.TLabel').pack(side='left', padx=(0, 15))
         
-        self.success_progress = ttk.Progressbar(progress_frame, style='Success.Horizontal.TProgressbar',
-                                               length=200, mode='determinate')
-        self.success_progress.grid(row=0, column=1, sticky=tk.W)
+        self.success_progress = ttk.Progressbar(progress_container, style='Success.Horizontal.TProgressbar',
+                                               length=250, mode='determinate')
+        self.success_progress.pack(side='left', padx=5)
         
-        self.success_rate_label = ttk.Label(progress_frame, text="0%", 
+        self.success_rate_label = ttk.Label(progress_container, text="0%", 
                                            style='Body.TLabel')
-        self.success_rate_label.grid(row=0, column=2, sticky=tk.W, padx=(10, 0))
+        self.success_rate_label.pack(side='left', padx=(15, 0))
         
         # === 로그 카드 ===
-        log_card = ttk.LabelFrame(main_frame, text="📋 실행 로그", padding="20")
-        log_card.grid(row=5, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
+        log_card = ttk.LabelFrame(main_frame, text="📋 실행 로그", padding="25")
+        log_card.grid(row=5, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10), ipady=10)
         
-        # 로그 제어 버튼들
+        # 로그 제어 버튼들 (깔끔하게 정렬)
         log_controls = tk.Frame(log_card, bg=self.style_manager.colors['bg_secondary'])
-        log_controls.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
+        log_controls.pack(fill='x', pady=(0, 15))
         
+        # 왼쪽: 로그 지우기 버튼
         clear_log_btn = ttk.Button(log_controls, text="🗑️ 로그 지우기", 
                                   command=self.clear_log, 
-                                  style='Primary.TButton', width=12)
-        clear_log_btn.grid(row=0, column=0, sticky=tk.W)
+                                  style='Primary.TButton', width=15)
+        clear_log_btn.pack(side='left')
         
-        # 로그 필터 체크박스들
+        # 오른쪽: 필터 체크박스들
         filter_frame = tk.Frame(log_controls, bg=self.style_manager.colors['bg_secondary'])
-        filter_frame.grid(row=0, column=1, sticky=tk.E, padx=(20, 0))
+        filter_frame.pack(side='right')
         
         self.show_errors = tk.BooleanVar(value=True)
         self.show_success = tk.BooleanVar(value=True)
         self.show_info = tk.BooleanVar(value=True)
         
         ttk.Checkbutton(filter_frame, text="오류", variable=self.show_errors,
-                       style='Modern.TCheckbutton').grid(row=0, column=0, padx=5)
+                       style='Modern.TCheckbutton').pack(side='left', padx=8)
         ttk.Checkbutton(filter_frame, text="성공", variable=self.show_success,
-                       style='Modern.TCheckbutton').grid(row=0, column=1, padx=5)
+                       style='Modern.TCheckbutton').pack(side='left', padx=8)
         ttk.Checkbutton(filter_frame, text="정보", variable=self.show_info,
-                       style='Modern.TCheckbutton').grid(row=0, column=2, padx=5)
+                       style='Modern.TCheckbutton').pack(side='left', padx=8)
         
-        # 로그 텍스트 영역을 더 모던하게
+        # 로그 텍스트 영역
         log_container = tk.Frame(log_card, bg=self.style_manager.colors['bg_secondary'])
-        log_container.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        log_container.pack(fill='both', expand=True)
         
-        self.log_text = tk.Text(log_container, height=10, wrap=tk.WORD,
+        self.log_text = tk.Text(log_container, height=12, wrap=tk.WORD,
                                bg=self.style_manager.colors['bg_tertiary'],
                                fg=self.style_manager.colors['text_primary'],
                                font=('JetBrains Mono', 9),
@@ -432,24 +439,21 @@ class GameDashboard:
         scrollbar = ttk.Scrollbar(log_container, orient=tk.VERTICAL, command=self.log_text.yview)
         self.log_text.configure(yscrollcommand=scrollbar.set)
         
-        self.log_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(0, 5))
-        scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
+        self.log_text.pack(side='left', fill='both', expand=True, padx=(0, 5))
+        scrollbar.pack(side='right', fill='y')
         
-        # 그리드 가중치 설정
+        # 그리드 가중치 설정 (반응형)
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
         main_frame.columnconfigure(0, weight=1)
-        main_frame.rowconfigure(5, weight=1)
-        log_card.columnconfigure(0, weight=1)
-        log_card.rowconfigure(1, weight=1)
-        log_container.columnconfigure(0, weight=1)
-        log_container.rowconfigure(0, weight=1)
-        log_controls.columnconfigure(1, weight=1)
         
-        # 카드들이 동적으로 늘어나도록
+        # 모든 카드 행은 고정 크기, 로그 영역만 확장
         for i in range(6):
             main_frame.rowconfigure(i, weight=0)
         main_frame.rowconfigure(5, weight=1)  # 로그 영역만 확장
+        
+        log_card.columnconfigure(0, weight=1)
+        log_card.rowconfigure(1, weight=1)
         
         # 초기 로그 메시지
         self.add_log("[START] 🎮 NEON 게이밍 대시보드가 시작되었습니다!")
