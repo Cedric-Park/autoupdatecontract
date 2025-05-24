@@ -67,15 +67,20 @@ class ModernStyle:
                        foreground=self.colors['accent_orange'],
                        font=('Segoe UI', 12, 'bold'))
         
-        # Frame 스타일
-        style.configure('Card.TLabelFrame',
+        # Frame 스타일 - 기본 TLabelFrame 수정
+        style.configure('TLabelFrame',
                        background=self.colors['bg_secondary'],
                        foreground=self.colors['text_primary'],
                        borderwidth=2,
                        relief='flat',
                        font=('Segoe UI', 11, 'bold'))
         
-        style.configure('Main.TFrame',
+        style.configure('TLabelFrame.Label',
+                       background=self.colors['bg_secondary'],
+                       foreground=self.colors['text_primary'],
+                       font=('Segoe UI', 11, 'bold'))
+        
+        style.configure('TFrame',
                        background=self.colors['bg_primary'],
                        borderwidth=0)
         
@@ -215,7 +220,7 @@ class GameDashboard:
     def create_widgets(self):
         """모던 UI 위젯 생성"""
         # 메인 프레임 (패딩과 색상 개선)
-        main_frame = ttk.Frame(self.root, style='Main.TFrame', padding="20")
+        main_frame = ttk.Frame(self.root, padding="20")
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
         # 타이틀 섹션 (더 크고 세련되게)
@@ -233,8 +238,7 @@ class GameDashboard:
         subtitle_label.pack()
         
         # === 상태 카드 ===
-        status_card = ttk.LabelFrame(main_frame, text="📊 실행 상태", 
-                                    style='Card.TLabelFrame', padding="20")
+        status_card = ttk.LabelFrame(main_frame, text="📊 실행 상태", padding="20")
         status_card.grid(row=1, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 20))
         
         # 상태 표시를 더 시각적으로
@@ -273,8 +277,7 @@ class GameDashboard:
         self.countdown_label.grid(row=2, column=0, sticky=tk.W, pady=3)
         
         # === 제어 버튼 카드 ===
-        control_card = ttk.LabelFrame(main_frame, text="🎮 제어", 
-                                     style='Card.TLabelFrame', padding="20")
+        control_card = ttk.LabelFrame(main_frame, text="🎮 제어", padding="20")
         control_card.grid(row=2, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 20))
         
         # 버튼들을 그리드로 더 깔끔하게 배치
@@ -301,8 +304,7 @@ class GameDashboard:
         self.manual_btn.grid(row=1, column=1, columnspan=2, pady=(5, 0))
         
         # === 설정 카드 ===
-        settings_card = ttk.LabelFrame(main_frame, text="⚙️ 설정", 
-                                      style='Card.TLabelFrame', padding="20")
+        settings_card = ttk.LabelFrame(main_frame, text="⚙️ 설정", padding="20")
         settings_card.grid(row=3, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 20))
         
         # 실행 주기 설정을 더 세련되게
@@ -334,8 +336,7 @@ class GameDashboard:
         immediate_check.grid(row=1, column=0, sticky=tk.W)
         
         # === 통계 카드 ===
-        stats_card = ttk.LabelFrame(main_frame, text="📈 실행 통계", 
-                                   style='Card.TLabelFrame', padding="20")
+        stats_card = ttk.LabelFrame(main_frame, text="📈 실행 통계", padding="20")
         stats_card.grid(row=4, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 20))
         
         # 통계를 시각적으로 표시
@@ -371,8 +372,7 @@ class GameDashboard:
         self.success_rate_label.grid(row=0, column=2, sticky=tk.W, padx=(10, 0))
         
         # === 로그 카드 ===
-        log_card = ttk.LabelFrame(main_frame, text="📋 실행 로그", 
-                                 style='Card.TLabelFrame', padding="20")
+        log_card = ttk.LabelFrame(main_frame, text="📋 실행 로그", padding="20")
         log_card.grid(row=5, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
         
         # 로그 제어 버튼들
