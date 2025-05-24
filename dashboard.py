@@ -8,29 +8,27 @@ from apscheduler.schedulers.background import BackgroundScheduler
 import subprocess
 import os
 import re
+import sys
 
 class ModernStyle:
     """모던 스타일 설정"""
     def __init__(self):
-        # 더 화려한 다크 테마 색상 팔레트 (Neon/Gaming 스타일)
+        # 깔끔한 모던 다크 테마 색상 팔레트 (파스텔톤)
         self.colors = {
-            'bg_primary': '#0d1117',      # 깊은 검정 배경
-            'bg_secondary': '#161b22',    # 카드 배경 (약간 밝은 검정)
-            'bg_tertiary': '#21262d',     # 입력 필드 배경
-            'accent_blue': '#58a6ff',     # 네온 블루
-            'accent_green': '#3fb950',    # 네온 그린
-            'accent_red': '#f85149',      # 네온 레드
-            'accent_orange': '#ff8c42',   # 네온 오렌지
-            'accent_purple': '#a78bfa',   # 네온 퍼플
-            'accent_cyan': '#39d0d8',     # 네온 시안
-            'accent_pink': '#ff6bb3',     # 네온 핑크
-            'text_primary': '#f0f6fc',    # 밝은 흰색 텍스트
-            'text_secondary': '#8b949e',  # 회색 텍스트
-            'text_muted': '#6e7681',      # 흐린 텍스트
-            'border': '#30363d',          # 테두리
+            'bg_primary': '#222428',      # 메인 배경 (새로운 색상)
+            'bg_secondary': '#15191E',    # 카드 배경 (새로운 색상)
+            'bg_tertiary': '#0f0f0f',     # 입력 필드 배경 (메인 배경과 동일)
+            'title_bg': '#222428',        # 타이틀 영역 배경 (새로운 색상)
+            'accent_blue': '#87CEEB',     # 파스텔 블루 (스카이블루)
+            'accent_green': '#98D8C8',    # 파스텔 그린 (민트그린)  
+            'accent_red': '#F8BBD9',      # 파스텔 핑크 (로즈)
+            'accent_purple': '#D1C4E9',   # 파스텔 퍼플 (라벤더)
+            'accent_orange': '#FFCC80',   # 파스텔 오렌지 (피치)
+            'text_primary': '#ffffff',    # 흰색 텍스트
+            'text_secondary': '#b0b0b0',  # 밝은 회색 텍스트
+            'text_muted': '#808080',      # 중간 회색 텍스트
+            'border': '#15191E',          # 테두리를 카드 배경색과 같게
             'shadow': '#000000',          # 그림자
-            'gradient_start': '#1a1a2e',  # 그라데이션 시작
-            'gradient_end': '#16213e',    # 그라데이션 끝
         }
     
     def configure_ttk_style(self):
@@ -40,21 +38,21 @@ class ModernStyle:
         # 전체 테마 설정
         style.theme_use('clam')
         
-        # Label 스타일
+        # Label 스타일 - 더 깔끔하게
         style.configure('Title.TLabel', 
-                       background=self.colors['bg_primary'],
-                       foreground=self.colors['accent_cyan'],
-                       font=('Segoe UI', 24, 'bold'))
+                       background=self.colors['title_bg'],
+                       foreground=self.colors['text_primary'],
+                       font=('Segoe UI', 28, 'bold'))
         
         style.configure('Subtitle.TLabel',
-                       background=self.colors['bg_primary'],
-                       foreground=self.colors['accent_purple'],
-                       font=('Segoe UI', 16, 'italic'))
+                       background=self.colors['title_bg'],
+                       foreground=self.colors['accent_blue'],
+                       font=('Segoe UI', 14))
         
         style.configure('Header.TLabel',
                        background=self.colors['bg_secondary'],
                        foreground=self.colors['text_primary'],
-                       font=('Segoe UI', 12, 'bold'))
+                       font=('Segoe UI', 11, 'bold'))
         
         style.configure('Body.TLabel',
                        background=self.colors['bg_secondary'],
@@ -64,96 +62,111 @@ class ModernStyle:
         style.configure('Success.TLabel',
                        background=self.colors['bg_secondary'],
                        foreground=self.colors['accent_green'],
-                       font=('Segoe UI', 14, 'bold'))
+                       font=('Segoe UI', 12, 'bold'))
         
         style.configure('Error.TLabel',
                        background=self.colors['bg_secondary'],
                        foreground=self.colors['accent_red'],
-                       font=('Segoe UI', 14, 'bold'))
+                       font=('Segoe UI', 12, 'bold'))
         
         style.configure('Running.TLabel',
                        background=self.colors['bg_secondary'],
                        foreground=self.colors['accent_orange'],
-                       font=('Segoe UI', 14, 'bold'))
+                       font=('Segoe UI', 12, 'bold'))
         
-        # Frame 스타일 - 기본 TLabelFrame 수정
+        # Frame 스타일 - 더 깔끔한 카드
         style.configure('TLabelFrame',
                        background=self.colors['bg_secondary'],
-                       foreground=self.colors['accent_blue'],
-                       borderwidth=2,
-                       relief='flat',
-                       font=('Segoe UI', 12, 'bold'))
+                       foreground=self.colors['text_primary'],
+                       borderwidth=1,
+                       relief='solid',
+                       bordercolor=self.colors['border'],
+                       font=('Segoe UI', 11, 'bold'))
         
         style.configure('TLabelFrame.Label',
                        background=self.colors['bg_secondary'],
-                       foreground=self.colors['accent_blue'],
-                       font=('Segoe UI', 12, 'bold'))
+                       foreground=self.colors['text_primary'],
+                       font=('Segoe UI', 11, 'bold'))
         
         style.configure('TFrame',
                        background=self.colors['bg_primary'],
                        borderwidth=0)
         
-        # Button 스타일 - 더 화려하게
+        # Button 스타일 - 모던하고 깔끔하게 (파스텔 + 작은 크기)
         style.configure('Primary.TButton',
-                       background=self.colors['accent_blue'],
-                       foreground='white',
-                       borderwidth=2,
+                       background='#4677A7',    # 블루로 변경
+                       foreground='#FFFFFF',    # 흰색 텍스트로 변경
+                       borderwidth=0,
                        focuscolor='none',
-                       font=('Segoe UI', 11, 'bold'),
-                       padding=(20, 10))
+                       font=('Segoe UI', 10, 'bold'),
+                       padding=(15, 8))  # 패딩 줄임
         
         style.map('Primary.TButton',
-                  background=[('active', self.colors['accent_cyan']), 
-                             ('pressed', self.colors['accent_purple'])])
+                  background=[('active', '#5B8BC7'), ('pressed', '#3A5F8A')])  # 호버/클릭 시 색상도 조정
         
         style.configure('Success.TButton',
-                       background=self.colors['accent_green'],
-                       foreground='white',
-                       borderwidth=2,
+                       background='#3B9B60',    # 진한 녹색으로 변경
+                       foreground='#FFFFFF',    # 흰색 텍스트로 변경
+                       borderwidth=0,
                        focuscolor='none',
-                       font=('Segoe UI', 11, 'bold'),
-                       padding=(20, 10))
+                       font=('Segoe UI', 10, 'bold'),
+                       padding=(15, 8))  # 패딩 줄임
         
         style.map('Success.TButton',
-                  background=[('active', '#4ade80'), ('pressed', '#22c55e')])
+                  background=[('active', '#4CAF70'), ('pressed', '#2E7D50')])  # 호버/클릭 시 색상도 조정
         
         style.configure('Danger.TButton',
-                       background=self.colors['accent_red'],
-                       foreground='white',
-                       borderwidth=2,
+                       background='#DD5D5C',    # 빨간색으로 변경
+                       foreground='#FFFFFF',    # 흰색 텍스트로 변경
+                       borderwidth=0,
                        focuscolor='none',
-                       font=('Segoe UI', 11, 'bold'),
-                       padding=(20, 10))
+                       font=('Segoe UI', 10, 'bold'),
+                       padding=(15, 8))  # 패딩 줄임
         
         style.map('Danger.TButton',
-                  background=[('active', self.colors['accent_pink']), ('pressed', '#dc2626')])
+                  background=[('active', '#E77B7B'), ('pressed', '#B94A4A')])  # 호버/클릭 시 색상도 조정
         
         style.configure('Warning.TButton',
-                       background=self.colors['accent_orange'],
-                       foreground='white',
-                       borderwidth=2,
+                       background='#5C45A2',    # 보라색으로 변경
+                       foreground='#FFFFFF',    # 흰색 텍스트로 변경
+                       borderwidth=0,
                        focuscolor='none',
-                       font=('Segoe UI', 11, 'bold'),
-                       padding=(20, 10))
+                       font=('Segoe UI', 10, 'bold'),
+                       padding=(15, 8))  # 패딩 줄임
         
         style.map('Warning.TButton',
-                  background=[('active', '#fbbf24'), ('pressed', '#f59e0b')])
+                  background=[('active', '#7B5FBF'), ('pressed', '#4A3485')])  # 호버/클릭 시 색상도 조정
         
-        # Combobox 스타일
+        # Combobox 스타일 - 더 깔끔하게
         style.configure('Modern.TCombobox',
                        fieldbackground=self.colors['bg_tertiary'],
                        background=self.colors['bg_tertiary'],
                        foreground=self.colors['text_primary'],
-                       borderwidth=2,
-                       lightcolor=self.colors['accent_blue'],
-                       darkcolor=self.colors['accent_blue'],
+                       borderwidth=1,
+                       lightcolor=self.colors['border'],        # 테두리 색상을 더 어둡게
+                       darkcolor=self.colors['border'],         # 테두리 색상을 더 어둡게
                        font=('Segoe UI', 10))
+        
+        # 콤보박스 상태별 색상 매핑 (포커스 유무 관계없이 동일한 배경색)
+        style.map('Modern.TCombobox',
+                  fieldbackground=[('active', self.colors['bg_tertiary']),
+                                  ('focus', self.colors['bg_tertiary']),
+                                  ('!focus', self.colors['bg_tertiary']),
+                                  ('readonly', self.colors['bg_tertiary'])],
+                  background=[('active', self.colors['bg_tertiary']),
+                             ('focus', self.colors['bg_tertiary']),
+                             ('!focus', self.colors['bg_tertiary']),
+                             ('readonly', self.colors['bg_tertiary'])],
+                  foreground=[('active', self.colors['text_primary']),
+                             ('focus', self.colors['text_primary']),
+                             ('!focus', self.colors['text_primary']),
+                             ('readonly', self.colors['text_primary'])])
         
         # Checkbutton 스타일
         style.configure('Modern.TCheckbutton',
                        background=self.colors['bg_secondary'],
                        foreground=self.colors['text_secondary'],
-                       focuscolor=self.colors['accent_purple'],
+                       focuscolor=self.colors['accent_blue'],
                        font=('Segoe UI', 10))
         
         return style
@@ -162,7 +175,7 @@ class GameDashboard:
     def __init__(self, root):
         self.root = root
         self.root.title("🎮 게임더하기 계약 관리 자동화 대시보드")
-        self.root.geometry("900x800")
+        self.root.geometry("800x900")  # 창 크기 축소 (1000 -> 800)
         
         # 모던 스타일 적용
         self.style_manager = ModernStyle()
@@ -179,9 +192,6 @@ class GameDashboard:
         self.is_running = False
         self.last_execution = None
         self.next_execution = None
-        self.execution_count = 0
-        self.success_count = 0
-        self.error_count = 0
         
         # 애니메이션 관련 변수
         self.status_blink_count = 0
@@ -192,6 +202,9 @@ class GameDashboard:
         
         # UI 생성
         self.create_widgets()
+        
+        # Windows 다크 모드 제목 표시줄 적용
+        self.root.after(100, lambda: apply_dark_title_bar(self.root))
         
         # 버튼 상태 초기화
         self.update_buttons()
@@ -228,179 +241,169 @@ class GameDashboard:
             json.dump(config, f, ensure_ascii=False, indent=2)
     
     def create_widgets(self):
-        """깔끔하게 정리된 UI 위젯 생성"""
-        # 메인 프레임 (일관된 패딩)
-        main_frame = ttk.Frame(self.root, padding="25")
-        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        """깔끔하고 모던한 UI 위젯 생성"""
+        # 메인 프레임
+        main_frame = tk.Frame(self.root, bg=self.style_manager.colors['bg_primary'])
+        main_frame.pack(fill='both', expand=True, padx=30, pady=15)  # 상단 패딩 30 -> 15로 줄임
         
-        # 타이틀 섹션 (중앙 정렬)
-        title_frame = tk.Frame(main_frame, bg=self.style_manager.colors['bg_primary'])
-        title_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 25))
+        # 타이틀 섹션
+        title_frame = tk.Frame(main_frame, bg=self.style_manager.colors['title_bg'])
+        title_frame.pack(fill='x', pady=(0, 15))  # 하단 패딩 30 -> 15로 줄임
         
         # 메인 타이틀
-        title_label = ttk.Label(title_frame, text="🎮 게임더하기 계약 관리", 
-                               style='Title.TLabel')
-        title_label.pack(pady=(15, 5))
+        title_label = tk.Label(title_frame, text="게임더하기 계약 관리", 
+                              bg=self.style_manager.colors['title_bg'],
+                              fg=self.style_manager.colors['text_primary'],
+                              font=('Segoe UI', 28, 'bold'))
+        title_label.pack(pady=(15, 8))  # 상단 패딩 20 -> 15로 줄임
         
         # 서브타이틀
-        subtitle_label = ttk.Label(title_frame, text="🚀 자동화 대시보드 v2.0 NEON EDITION 🚀", 
-                                  style='Subtitle.TLabel')
-        subtitle_label.pack(pady=(0, 15))
+        subtitle_label = tk.Label(title_frame, text="자동화 대시보드 v2.0 NEON EDITION", 
+                                 bg=self.style_manager.colors['title_bg'],
+                                 fg='#B482E2',  # 보라색으로 변경
+                                 font=('Segoe UI', 14, 'bold'))  # 굵게 변경
+        subtitle_label.pack(pady=(0, 15))  # 하단 패딩 20 -> 15로 줄임
         
         # 구분선
-        separator_frame = tk.Frame(title_frame, height=3, bg=self.style_manager.colors['accent_cyan'])
-        separator_frame.pack(fill='x', padx=100, pady=(5, 15))
+        separator_frame = tk.Frame(title_frame, height=1, bg=self.style_manager.colors['border'])
+        separator_frame.pack(fill='x', padx=60, pady=(0, 5))  # 하단 패딩 10 -> 5로 줄임
         
-        # === 상태 카드 ===
-        status_card = ttk.LabelFrame(main_frame, text="📊 실행 상태", padding="25")
-        status_card.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(0, 15), ipady=10)
+        # === 통합 제어 카드 (좌우 분할) ===
+        control_card = tk.Frame(main_frame, bg=self.style_manager.colors['bg_secondary'], 
+                               relief='solid', borderwidth=1, highlightbackground=self.style_manager.colors['border'])
+        control_card.pack(fill='x', pady=(0, 15))  # 하단 패딩 20 -> 15로 줄임
         
-        # 상태 표시 컨테이너
-        status_container = tk.Frame(status_card, bg=self.style_manager.colors['bg_secondary'])
-        status_container.pack(fill='x', pady=(0, 15))
+        # 카드 제목
+        tk.Label(control_card, text="시스템 제어 및 설정", 
+                bg=self.style_manager.colors['bg_secondary'],
+                fg=self.style_manager.colors['text_primary'],
+                font=('Segoe UI', 11, 'bold')).pack(anchor='w', padx=20, pady=(15, 10))
         
-        # 상태 인디케이터 (중앙 정렬)
-        indicator_frame = tk.Frame(status_container, bg=self.style_manager.colors['bg_secondary'])
-        indicator_frame.pack(pady=10)
+        # === 좌우 분할 컨테이너 ===
+        main_container = tk.Frame(control_card, bg=self.style_manager.colors['bg_secondary'])
+        main_container.pack(fill='both', expand=True, padx=20, pady=(0, 20))
         
-        # 상태 도트와 라벨을 한 줄에 중앙 정렬
-        self.status_dot = tk.Label(indicator_frame, text="●", font=('Segoe UI', 25),
+        # === 좌측 영역: 상태 및 실행 제어 ===
+        left_section = tk.Frame(main_container, bg=self.style_manager.colors['bg_secondary'])
+        left_section.pack(side='left', fill='both', expand=True, padx=(0, 20))
+        
+        # 상태 표시
+        status_frame = tk.Frame(left_section, bg=self.style_manager.colors['bg_secondary'])
+        status_frame.pack(anchor='w', pady=(0, 10))
+        
+        self.status_dot = tk.Label(status_frame, text="●", font=('Segoe UI', 16),
                                   bg=self.style_manager.colors['bg_secondary'],
                                   fg=self.style_manager.colors['accent_red'])
-        self.status_dot.pack(side='left', padx=(0, 10))
+        self.status_dot.pack(side='left', padx=(0, 8))
         
-        self.status_label = ttk.Label(indicator_frame, text="🔴 중지됨", 
-                                     style='Error.TLabel')
+        self.status_label = tk.Label(status_frame, text="중지됨", 
+                                    bg=self.style_manager.colors['bg_secondary'],
+                                    fg=self.style_manager.colors['accent_red'],
+                                    font=('Segoe UI', 12, 'bold'))
         self.status_label.pack(side='left')
         
-        # 정보 표시 (깔끔하게 정렬)
-        info_frame = tk.Frame(status_card, bg=self.style_manager.colors['bg_secondary'])
-        info_frame.pack(fill='x', pady=5)
+        # 실행 정보
+        self.last_exec_label = tk.Label(left_section, text="마지막 실행: 없음", 
+                                       bg=self.style_manager.colors['bg_secondary'],
+                                       fg=self.style_manager.colors['text_secondary'],
+                                       font=('Segoe UI', 9))
+        self.last_exec_label.pack(anchor='w', pady=1)
         
-        self.last_exec_label = ttk.Label(info_frame, text="마지막 실행: 없음", 
-                                        style='Body.TLabel')
-        self.last_exec_label.pack(pady=2)
+        self.next_exec_label = tk.Label(left_section, text="다음 실행: 없음", 
+                                       bg=self.style_manager.colors['bg_secondary'],
+                                       fg=self.style_manager.colors['text_secondary'],
+                                       font=('Segoe UI', 9))
+        self.next_exec_label.pack(anchor='w', pady=1)
         
-        self.next_exec_label = ttk.Label(info_frame, text="다음 실행: 없음", 
-                                        style='Body.TLabel')
-        self.next_exec_label.pack(pady=2)
+        self.countdown_label = tk.Label(left_section, text="", 
+                                       bg=self.style_manager.colors['bg_secondary'],
+                                       fg=self.style_manager.colors['text_secondary'],
+                                       font=('Segoe UI', 9))
+        self.countdown_label.pack(anchor='w', pady=(1, 15))
         
-        self.countdown_label = ttk.Label(info_frame, text="", 
-                                        style='Body.TLabel',
-                                        font=('Segoe UI', 10, 'italic'))
-        self.countdown_label.pack(pady=2)
+        # 실행 버튼들
+        button_frame = tk.Frame(left_section, bg=self.style_manager.colors['bg_secondary'])
+        button_frame.pack(anchor='w')
         
-        # === 제어 버튼 카드 ===
-        control_card = ttk.LabelFrame(main_frame, text="🎮 제어", padding="25")
-        control_card.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(0, 15), ipady=10)
+        # 토글 버튼 (자동 실행 시작/중지)
+        self.toggle_btn = ttk.Button(button_frame, text="▶ 자동 실행 시작", 
+                                    command=self.toggle_scheduler, 
+                                    style='Success.TButton')
+        self.toggle_btn.pack(side='left', padx=(0, 10))
         
-        # 버튼 컨테이너 (완벽 중앙 정렬)
-        button_container = tk.Frame(control_card, bg=self.style_manager.colors['bg_secondary'])
-        button_container.pack(expand=True)
-        
-        # 첫 번째 줄 버튼들 (동일한 크기로 나란히)
-        button_row1 = tk.Frame(button_container, bg=self.style_manager.colors['bg_secondary'])
-        button_row1.pack(pady=(0, 10))
-        
-        self.start_btn = ttk.Button(button_row1, text="▶️ 자동 실행 시작", 
-                                   command=self.start_scheduler, 
-                                   style='Success.TButton', width=20)
-        self.start_btn.pack(side='left', padx=10)
-        
-        self.stop_btn = ttk.Button(button_row1, text="⏹️ 자동 실행 중지", 
-                                  command=self.stop_scheduler, 
-                                  style='Danger.TButton', width=20)
-        self.stop_btn.pack(side='left', padx=10)
-        
-        # 두 번째 줄 버튼 (중앙 정렬)
-        button_row2 = tk.Frame(button_container, bg=self.style_manager.colors['bg_secondary'])
-        button_row2.pack()
-        
-        self.manual_btn = ttk.Button(button_row2, text="🚀 즉시 실행", 
+        self.manual_btn = ttk.Button(button_frame, text="⚡ 즉시 실행", 
                                     command=self.manual_execution, 
-                                    style='Warning.TButton', width=42)
-        self.manual_btn.pack()
+                                    style='Warning.TButton')
+        self.manual_btn.pack(side='left')
         
-        # === 설정 카드 ===
-        settings_card = ttk.LabelFrame(main_frame, text="⚙️ 설정", padding="25")
-        settings_card.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(0, 15), ipady=10)
+        # === 우측 영역: 설정 ===
+        right_section = tk.Frame(main_container, bg=self.style_manager.colors['bg_secondary'],
+                                relief='solid', borderwidth=1, highlightbackground=self.style_manager.colors['border'])
+        right_section.pack(side='right', fill='y', padx=(0, 0))
         
-        # 설정 컨테이너
-        settings_container = tk.Frame(settings_card, bg=self.style_manager.colors['bg_secondary'])
-        settings_container.pack(fill='x')
+        # 설정 제목
+        tk.Label(right_section, text="실행 설정", 
+                bg=self.style_manager.colors['bg_secondary'],
+                fg=self.style_manager.colors['text_primary'],
+                font=('Segoe UI', 10, 'bold')).pack(anchor='w', padx=15, pady=(8, 10))  # 상단 패딩 줄임
         
-        # 실행 주기 설정 (중앙 정렬)
-        interval_row = tk.Frame(settings_container, bg=self.style_manager.colors['bg_secondary'])
-        interval_row.pack(pady=(0, 15))
+        # 실행 주기 설정
+        interval_frame = tk.Frame(right_section, bg=self.style_manager.colors['bg_secondary'])
+        interval_frame.pack(anchor='w', padx=15, pady=(0, 8))  # 하단 패딩도 약간 줄임
         
-        ttk.Label(interval_row, text="실행 주기:", style='Header.TLabel').pack(side='left', padx=(0, 10))
+        tk.Label(interval_frame, text="실행 주기:", 
+                bg=self.style_manager.colors['bg_secondary'],
+                fg=self.style_manager.colors['text_primary'],
+                font=('Segoe UI', 9)).pack(anchor='w', pady=(0, 5))
+        
+        interval_input_frame = tk.Frame(interval_frame, bg=self.style_manager.colors['bg_secondary'])
+        interval_input_frame.pack(anchor='w')
         
         self.interval_var = tk.StringVar(value=str(self.config.get('execution_interval', 60)))
-        interval_combo = ttk.Combobox(interval_row, textvariable=self.interval_var, 
+        interval_combo = ttk.Combobox(interval_input_frame, textvariable=self.interval_var, 
                                      values=['15', '30', '60', '120', '180'], 
                                      style='Modern.TCombobox', width=8, state='readonly')
-        interval_combo.pack(side='left', padx=5)
+        interval_combo.pack(side='left', padx=(0, 5))
         
-        ttk.Label(interval_row, text="분", style='Body.TLabel').pack(side='left', padx=(5, 20))
+        tk.Label(interval_input_frame, text="분", 
+                bg=self.style_manager.colors['bg_secondary'],
+                fg=self.style_manager.colors['text_secondary'],
+                font=('Segoe UI', 9)).pack(side='left')
         
-        save_btn = ttk.Button(interval_row, text="💾 설정 저장", 
-                             command=self.save_settings, 
-                             style='Primary.TButton', width=15)
-        save_btn.pack(side='left')
-        
-        # 즉시 실행 옵션 (중앙 정렬)
+        # 자동 실행 옵션
         self.immediate_start_var = tk.BooleanVar(value=self.config.get('immediate_start', True))
-        immediate_check = ttk.Checkbutton(settings_container, text="자동 실행 시작 시 즉시 1회 실행", 
-                                         variable=self.immediate_start_var,
-                                         style='Modern.TCheckbutton')
-        immediate_check.pack()
+        immediate_check = tk.Checkbutton(right_section, text="시작 시 즉시 실행", 
+                                        variable=self.immediate_start_var,
+                                        bg=self.style_manager.colors['bg_secondary'],
+                                        fg=self.style_manager.colors['text_secondary'],
+                                        selectcolor=self.style_manager.colors['bg_tertiary'],
+                                        activebackground=self.style_manager.colors['bg_secondary'],
+                                        font=('Segoe UI', 9))
+        immediate_check.pack(anchor='w', padx=15, pady=(0, 15))
         
-        # === 통계 카드 ===
-        stats_card = ttk.LabelFrame(main_frame, text="📈 실행 통계", padding="25")
-        stats_card.grid(row=4, column=0, sticky=(tk.W, tk.E), pady=(0, 15), ipady=10)
+        # 설정 저장 버튼
+        save_btn = ttk.Button(right_section, text="💾 설정 저장", 
+                             command=self.save_settings, 
+                             style='Primary.TButton')
+        save_btn.pack(anchor='w', padx=15, pady=(0, 15))
         
-        # 통계 컨테이너
-        stats_container = tk.Frame(stats_card, bg=self.style_manager.colors['bg_secondary'])
-        stats_container.pack(fill='x')
+        # === 실행 로그 카드 ===
+        log_card = tk.Frame(main_frame, bg=self.style_manager.colors['bg_secondary'], 
+                           relief='solid', borderwidth=1, highlightbackground=self.style_manager.colors['border'])
+        log_card.pack(fill='both', expand=True, pady=(0, 0))
         
-        # 통계 메인 라벨
-        self.stats_label = ttk.Label(stats_container, text="실행 기록 없음", 
-                                    style='Header.TLabel')
-        self.stats_label.pack(pady=(0, 15))
+        # 카드 제목
+        tk.Label(log_card, text="실행 로그", 
+                bg=self.style_manager.colors['bg_secondary'],
+                fg=self.style_manager.colors['text_primary'],
+                font=('Segoe UI', 11, 'bold')).pack(anchor='w', padx=20, pady=(15, 5))
         
-        # 프로그레스 바 스타일
-        self.style.configure('Success.Horizontal.TProgressbar',
-                           background=self.style_manager.colors['accent_green'],
-                           troughcolor=self.style_manager.colors['bg_tertiary'],
-                           borderwidth=2,
-                           lightcolor=self.style_manager.colors['accent_green'],
-                           darkcolor=self.style_manager.colors['accent_green'])
-        
-        # 성공률 프로그레스 바 (중앙 정렬)
-        progress_container = tk.Frame(stats_container, bg=self.style_manager.colors['bg_secondary'])
-        progress_container.pack()
-        
-        ttk.Label(progress_container, text="성공률:", 
-                 style='Body.TLabel').pack(side='left', padx=(0, 15))
-        
-        self.success_progress = ttk.Progressbar(progress_container, style='Success.Horizontal.TProgressbar',
-                                               length=250, mode='determinate')
-        self.success_progress.pack(side='left', padx=5)
-        
-        self.success_rate_label = ttk.Label(progress_container, text="0%", 
-                                           style='Body.TLabel')
-        self.success_rate_label.pack(side='left', padx=(15, 0))
-        
-        # === 로그 카드 ===
-        log_card = ttk.LabelFrame(main_frame, text="📋 실행 로그", padding="25")
-        log_card.grid(row=5, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10), ipady=10)
-        
-        # 로그 제어 버튼들 (깔끔하게 정렬)
+        # 로그 제어 버튼들
         log_controls = tk.Frame(log_card, bg=self.style_manager.colors['bg_secondary'])
-        log_controls.pack(fill='x', pady=(0, 15))
+        log_controls.pack(fill='x', padx=20, pady=(0, 15))
         
         # 왼쪽: 로그 지우기 버튼
-        clear_log_btn = ttk.Button(log_controls, text="🗑️ 로그 지우기", 
+        clear_log_btn = ttk.Button(log_controls, text="❌로그 지우기", 
                                   command=self.clear_log, 
                                   style='Primary.TButton', width=15)
         clear_log_btn.pack(side='left')
@@ -413,65 +416,51 @@ class GameDashboard:
         self.show_success = tk.BooleanVar(value=True)
         self.show_info = tk.BooleanVar(value=True)
         
-        ttk.Checkbutton(filter_frame, text="오류", variable=self.show_errors,
-                       style='Modern.TCheckbutton').pack(side='left', padx=8)
-        ttk.Checkbutton(filter_frame, text="성공", variable=self.show_success,
-                       style='Modern.TCheckbutton').pack(side='left', padx=8)
-        ttk.Checkbutton(filter_frame, text="정보", variable=self.show_info,
-                       style='Modern.TCheckbutton').pack(side='left', padx=8)
+        tk.Checkbutton(filter_frame, text="오류", variable=self.show_errors,
+                      bg=self.style_manager.colors['bg_secondary'],
+                      fg=self.style_manager.colors['text_secondary'],
+                      selectcolor=self.style_manager.colors['bg_tertiary'],
+                      activebackground=self.style_manager.colors['bg_secondary'],
+                      font=('Segoe UI', 10)).pack(side='left', padx=6)
+        tk.Checkbutton(filter_frame, text="성공", variable=self.show_success,
+                      bg=self.style_manager.colors['bg_secondary'],
+                      fg=self.style_manager.colors['text_secondary'],
+                      selectcolor=self.style_manager.colors['bg_tertiary'],
+                      activebackground=self.style_manager.colors['bg_secondary'],
+                      font=('Segoe UI', 10)).pack(side='left', padx=6)
+        tk.Checkbutton(filter_frame, text="정보", variable=self.show_info,
+                      bg=self.style_manager.colors['bg_secondary'],
+                      fg=self.style_manager.colors['text_secondary'],
+                      selectcolor=self.style_manager.colors['bg_tertiary'],
+                      activebackground=self.style_manager.colors['bg_secondary'],
+                      font=('Segoe UI', 10)).pack(side='left', padx=6)
         
-        # 로그 텍스트 영역
+        # 로그 텍스트 영역 (높이 증가)
         log_container = tk.Frame(log_card, bg=self.style_manager.colors['bg_secondary'])
-        log_container.pack(fill='both', expand=True)
+        log_container.pack(fill='both', expand=True, padx=20, pady=(0, 20))
         
-        self.log_text = tk.Text(log_container, height=12, wrap=tk.WORD,
+        self.log_text = tk.Text(log_container, height=15, wrap=tk.WORD,
                                bg=self.style_manager.colors['bg_tertiary'],
                                fg=self.style_manager.colors['text_primary'],
                                font=('JetBrains Mono', 9),
-                               insertbackground=self.style_manager.colors['accent_cyan'],
-                               selectbackground=self.style_manager.colors['accent_purple'],
+                               insertbackground=self.style_manager.colors['text_primary'],
+                               selectbackground=self.style_manager.colors['accent_blue'],
                                selectforeground='white',
                                borderwidth=2,
                                highlightthickness=2,
-                               highlightcolor=self.style_manager.colors['accent_blue'],
+                               highlightcolor=self.style_manager.colors['border'],      # 포커스 시 테두리
+                               highlightbackground=self.style_manager.colors['border'], # 비포커스 시 테두리
                                relief='flat')
         
         scrollbar = ttk.Scrollbar(log_container, orient=tk.VERTICAL, command=self.log_text.yview)
         self.log_text.configure(yscrollcommand=scrollbar.set)
         
-        self.log_text.pack(side='left', fill='both', expand=True, padx=(0, 5))
+        self.log_text.pack(side='left', fill='both', expand=True, padx=(0, 4))
         scrollbar.pack(side='right', fill='y')
         
-        # 그리드 가중치 설정 (반응형)
-        self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(0, weight=1)
-        main_frame.columnconfigure(0, weight=1)
-        
-        # 모든 카드 행은 고정 크기, 로그 영역만 확장
-        for i in range(6):
-            main_frame.rowconfigure(i, weight=0)
-        main_frame.rowconfigure(5, weight=1)  # 로그 영역만 확장
-        
-        log_card.columnconfigure(0, weight=1)
-        log_card.rowconfigure(1, weight=1)
-        
         # 초기 로그 메시지
-        self.add_log("[START] 🎮 NEON 게이밍 대시보드가 시작되었습니다!")
-        self.add_log("[INFO] 🌟 완전히 새로운 네온 스타일 UI를 경험해보세요!")
-        self.add_log("[SYSTEM] 🚀 모든 시스템이 준비되었습니다.")
-    
-    def clean_log_message(self, message):
-        """로그 메시지에서 이모지 제거 (대시보드 표시용)"""
-        # 일반적인 이모지 패턴 제거
-        emoji_pattern = re.compile("["
-                                 u"\U0001F600-\U0001F64F"  # 감정
-                                 u"\U0001F300-\U0001F5FF"  # 기호 & 픽토그램
-                                 u"\U0001F680-\U0001F6FF"  # 교통 & 지도
-                                 u"\U0001F1E0-\U0001F1FF"  # 국기
-                                 u"\U00002600-\U000026FF"  # 기타 기호
-                                 u"\U00002700-\U000027BF"  # 딩배트
-                                 "]+", flags=re.UNICODE)
-        return emoji_pattern.sub('', message).strip()
+        self.add_log("[시작] 게임더하기 계약관리 대시보드가 시작되었습니다.")
+        self.add_log("[정보] 모든 시스템이 준비되었습니다.")
     
     def add_log(self, message):
         """로그 메시지 추가 - 색상 코딩 적용"""
@@ -485,7 +474,7 @@ class GameDashboard:
             color = self.style_manager.colors['accent_green']
         elif any(keyword in message for keyword in ['[START]', '[CRAWL]', '시작', 'start']):
             color = self.style_manager.colors['accent_blue']
-        elif any(keyword in message for keyword in ['[WAIT]', '[INFO]', 'wait', '대기']):
+        elif any(keyword in message for keyword in ['[WAIT]', '[INFO]', 'wait', '대기', '정보']):
             color = self.style_manager.colors['accent_orange']
         else:
             color = self.style_manager.colors['text_primary']
@@ -509,6 +498,16 @@ class GameDashboard:
         line_count = int(self.log_text.index('end-1c').split('.')[0])
         if line_count > 150:
             self.log_text.delete('1.0', '10.0')  # 한 번에 10줄 삭제
+        
+        # 콘솔에도 출력
+        print(f"[{timestamp}] {message}")
+    
+    def toggle_scheduler(self):
+        """자동 실행 스케줄러 토글"""
+        if self.is_running:
+            self.stop_scheduler()
+        else:
+            self.start_scheduler()
     
     def start_scheduler(self):
         """자동 실행 스케줄러 시작"""
@@ -576,7 +575,6 @@ class GameDashboard:
             self.add_log("[CRAWL] 크롤링을 시작합니다...")
             
             # Windows 환경 한글 처리를 위한 설정
-            import sys
             if sys.platform.startswith('win'):
                 # Windows에서는 cp949 인코딩 사용
                 encoding = 'cp949'
@@ -601,14 +599,19 @@ class GameDashboard:
                         line = line.strip()
                         if line:  # 빈 줄 제외
                             output_lines.append(line)
-                            # 대시보드에 실시간 로그 표시 (안전한 방식)
+                            # 대시보드에 실시간 로그 표시 (단순화된 안전한 방식)
                             def safe_add_log(msg):
                                 try:
-                                    # 이모지 제거 후 로그 표시
-                                    clean_msg = self.clean_log_message(msg)
+                                    # 한글은 유지하고 문제되는 특수문자만 제거
+                                    import re
+                                    # 제어문자와 일부 특수 이모지만 제거 (한글과 기본 특수문자는 유지)
+                                    clean_msg = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]', '', str(msg))
+                                    # 너무 긴 줄은 자르기
+                                    if len(clean_msg) > 200:
+                                        clean_msg = clean_msg[:200] + "..."
                                     self.add_log(f"[LOG] {clean_msg}")
-                                except:
-                                    self.add_log(f"[LOG] [로그 표시 오류]")
+                                except Exception as e:
+                                    self.add_log(f"[INFO] [크롤링 진행 중...]")
                             
                             self.root.after(0, lambda msg=line: safe_add_log(msg))
                     elif process.poll() is not None:
@@ -624,11 +627,9 @@ class GameDashboard:
             # 프로세스 완료 대기
             return_code = process.wait()
             
-            self.execution_count += 1
             self.last_execution = datetime.now()
             
             if return_code == 0:
-                self.success_count += 1
                 self.add_log("[OK] 크롤링이 성공적으로 완료되었습니다.")
                 
                 # 성공 토스트 알림
@@ -643,7 +644,6 @@ class GameDashboard:
                     for summary in summary_lines[-5:]:  # 최근 5개만
                         self.add_log(f"   • {summary}")
             else:
-                self.error_count += 1
                 self.add_log(f"[ERROR] 크롤링 실행 중 오류 발생 (코드: {return_code})")
                 
                 # 오류 토스트 알림
@@ -663,7 +663,6 @@ class GameDashboard:
                 self.next_execution = datetime.now() + timedelta(minutes=interval)
             
         except Exception as e:
-            self.error_count += 1
             self.add_log(f"[ERROR] 실행 중 예외 발생: {str(e)}")
             self.add_log("[TIP] 문제 해결을 위해 직접 실행해보세요: python login_and_crawl.py")
             
@@ -693,21 +692,25 @@ class GameDashboard:
     def update_buttons(self):
         """버튼 상태 업데이트"""
         if self.is_running:
-            self.start_btn.configure(state='disabled')
-            self.stop_btn.configure(state='normal')
+            # 실행 중일 때: 중지 버튼으로 변경
+            self.toggle_btn.configure(text="⏹ 자동 실행 중지", style='Danger.TButton')
+            self.manual_btn.configure(state='normal')  # 즉시 실행은 계속 가능
         else:
-            self.start_btn.configure(state='normal')
-            self.stop_btn.configure(state='disabled')
+            # 중지 상태일 때: 시작 버튼으로 변경
+            self.toggle_btn.configure(text="▶ 자동 실행 시작", style='Success.TButton')
+            self.manual_btn.configure(state='normal')
     
     def update_status(self):
         """상태 표시 업데이트"""
         # 실행 상태 - 모던 스타일 적용
         if self.is_running:
-            self.status_label.configure(text="🟢 자동 실행 중", style='Success.TLabel')
+            self.status_label.configure(text="실행 중", 
+                                       fg=self.style_manager.colors['accent_green'])
             self.status_dot.configure(fg=self.style_manager.colors['accent_green'])
         else:
-            self.status_label.configure(text="🔴 중지됨", style='Error.TLabel')
-            self.status_dot.configure(fg=self.style_manager.colors['accent_red'])
+            self.status_label.configure(text="중지됨", 
+                                       fg='#DD5D5C')  # 진한 빨간색으로 변경
+            self.status_dot.configure(fg='#DD5D5C')    # 진한 빨간색으로 변경
         
         # 마지막 실행 시간
         if self.last_execution:
@@ -727,67 +730,19 @@ class GameDashboard:
                 # 실행이 임박하면 색상 변경
                 if minutes < 1:
                     self.countdown_label.configure(
-                        text=f"⏰ {minutes}분 {seconds}초 후 실행",
-                        foreground=self.style_manager.colors['accent_orange'])
+                        text=f"{minutes}분 {seconds}초 후 실행",
+                        fg=self.style_manager.colors['accent_orange'])
                     self.status_dot.configure(fg=self.style_manager.colors['accent_orange'])
                 else:
                     self.countdown_label.configure(
-                        text=f"⏰ {minutes}분 {seconds}초 후 실행",
-                        foreground=self.style_manager.colors['text_secondary'])
+                        text=f"{minutes}분 {seconds}초 후 실행",
+                        fg=self.style_manager.colors['text_secondary'])
                     self.status_dot.configure(fg=self.style_manager.colors['accent_green'])
             else:
                 self.countdown_label.configure(text="")
         else:
             self.next_exec_label.configure(text="다음 실행: 없음")
             self.countdown_label.configure(text="")
-        
-        # 통계 업데이트 - 색상 강조 및 프로그레스 바
-        total = self.execution_count
-        success = self.success_count
-        error = self.error_count
-        
-        if total == 0:
-            stats_text = "실행 기록 없음"
-            stats_color = self.style_manager.colors['text_muted']
-            success_rate = 0
-            self.success_progress['value'] = 0
-            self.success_rate_label.configure(text="0%", 
-                                            foreground=self.style_manager.colors['text_muted'])
-        else:
-            success_rate = (success / total * 100) if total > 0 else 0
-            stats_text = f"총 실행: {total}회 | 성공: {success}회 | 실패: {error}회"
-            
-            # 성공률에 따라 색상 변경
-            if success_rate >= 90:
-                stats_color = self.style_manager.colors['accent_green']
-                progress_style = 'Success.Horizontal.TProgressbar'
-                rate_color = self.style_manager.colors['accent_green']
-            elif success_rate >= 70:
-                stats_color = self.style_manager.colors['accent_orange']
-                # 주황색 프로그레스 바 스타일
-                self.style.configure('Warning.Horizontal.TProgressbar',
-                                   background=self.style_manager.colors['accent_orange'],
-                                   troughcolor=self.style_manager.colors['bg_tertiary'],
-                                   borderwidth=0)
-                progress_style = 'Warning.Horizontal.TProgressbar'
-                rate_color = self.style_manager.colors['accent_orange']
-            else:
-                stats_color = self.style_manager.colors['accent_red']
-                # 빨간색 프로그레스 바 스타일
-                self.style.configure('Error.Horizontal.TProgressbar',
-                                   background=self.style_manager.colors['accent_red'],
-                                   troughcolor=self.style_manager.colors['bg_tertiary'],
-                                   borderwidth=0)
-                progress_style = 'Error.Horizontal.TProgressbar'
-                rate_color = self.style_manager.colors['accent_red']
-            
-            # 프로그레스 바 업데이트
-            self.success_progress.configure(style=progress_style)
-            self.success_progress['value'] = success_rate
-            self.success_rate_label.configure(text=f"{success_rate:.1f}%", 
-                                            foreground=rate_color)
-        
-        self.stats_label.configure(text=stats_text, foreground=stats_color)
         
         # 1초 후 다시 업데이트
         self.root.after(1000, self.update_status)
@@ -830,16 +785,16 @@ class GameDashboard:
             
             # 토스트 타입에 따른 색상 설정
             if toast_type == "success":
-                bg_color = self.style_manager.colors['accent_green']
+                bg_color = '#3B9B60'  # 진한 녹색
                 icon = "✅"
             elif toast_type == "error":
-                bg_color = self.style_manager.colors['accent_red']
+                bg_color = '#DD5D5C'  # 진한 빨간색
                 icon = "❌"
             elif toast_type == "warning":
-                bg_color = self.style_manager.colors['accent_orange']
+                bg_color = '#E67E22'  # 진한 오렌지
                 icon = "⚠️"
             else:  # info
-                bg_color = self.style_manager.colors['accent_cyan']
+                bg_color = '#4677A7'  # 진한 블루
                 icon = "ℹ️"
             
             # 토스트 프레임
@@ -941,6 +896,67 @@ class GameDashboard:
             
             self.status_blink_count += 1
             self.root.after(200, self.blink_status_indicator)
+
+# Windows 다크 모드 적용을 위한 함수
+def apply_dark_title_bar(root):
+    """Windows 제목 표시줄과 윈도우 배경을 다크 모드로 변경"""
+    try:
+        if sys.platform == "win32":
+            import ctypes
+            from ctypes import wintypes
+            
+            # Windows API 함수들
+            user32 = ctypes.windll.user32
+            dwmapi = ctypes.windll.dwmapi
+            
+            # 윈도우 핸들 가져오기
+            hwnd = user32.GetParent(root.winfo_id())
+            
+            # DWMWA_USE_IMMERSIVE_DARK_MODE 속성 설정
+            DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+            set_dark_mode = ctypes.c_int(1)  # 1 = 다크 모드, 0 = 라이트 모드
+            
+            # DwmSetWindowAttribute 함수 호출
+            dwmapi.DwmSetWindowAttribute(
+                hwnd,
+                DWMWA_USE_IMMERSIVE_DARK_MODE,
+                ctypes.byref(set_dark_mode),
+                ctypes.sizeof(set_dark_mode)
+            )
+            
+            # 제목 표시줄 색상 변경 (창 바탕색과 동일하게)
+            DWMWA_CAPTION_COLOR = 35
+            dark_color = ctypes.c_int(0x282422)  # #222428를 리틀 엔디안으로 변환
+            
+            dwmapi.DwmSetWindowAttribute(
+                hwnd,
+                DWMWA_CAPTION_COLOR,
+                ctypes.byref(dark_color),
+                ctypes.sizeof(dark_color)
+            )
+            
+            # 윈도우 프레임 배경색 설정
+            DWMWA_BORDER_COLOR = 34
+            dwmapi.DwmSetWindowAttribute(
+                hwnd,
+                DWMWA_BORDER_COLOR,
+                ctypes.byref(dark_color),
+                ctypes.sizeof(dark_color)
+            )
+            
+            # 추가 윈도우 배경 설정
+            DWMWA_COLOR_DEFAULT = 0x282422  # 배경색 (#222428을 리틀 엔디안으로)
+            try:
+                # 윈도우 배경 브러시 설정
+                gdi32 = ctypes.windll.gdi32
+                bg_brush = gdi32.CreateSolidBrush(DWMWA_COLOR_DEFAULT)
+                user32.SetClassLongPtrW(hwnd, -10, bg_brush)  # GCL_HBRBACKGROUND = -10
+            except:
+                pass
+            
+    except Exception as e:
+        print(f"다크 모드 적용 실패: {e}")
+        # 실패해도 프로그램은 계속 실행
 
 def main():
     root = tk.Tk()
