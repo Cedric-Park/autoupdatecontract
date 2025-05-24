@@ -1,6 +1,7 @@
 import yagmail
 import os
 import requests
+import re
 
 def format_estimate_details(estimate_str):
     """
@@ -42,7 +43,7 @@ def format_estimate_details(estimate_str):
     
     return '\n'.join(formatted_items)
 
-def make_change_alert(row, changes, changed_cols, contact_info=None):
+def make_change_alert(row, changes, changed_cols, contact_info=None, estimate_details=None):
     """
     변경 알림 메시지 생성 함수
     이메일용과 텔레그램용 메시지를 다르게 생성하고, 견적서 제출현황 등 포맷 개선
@@ -51,8 +52,15 @@ def make_change_alert(row, changes, changed_cols, contact_info=None):
     service_req = row[3]
     col_str = ', '.join(changed_cols)
     
-    # 담당자 정보
-    to_name = contact_info['name'] if contact_info else ""
+    # 담당자 정보 처리
+    if contact_info:
+        to_name = contact_info['name']
+        greeting = f"안녕하세요, {to_name}님."
+        telegram_greeting = f"{to_name}님, 게임사"
+    else:
+        to_name = "담당자"
+        greeting = f"안녕하세요."
+        telegram_greeting = f"⚠️ 담당자 미등록 | 게임사"
     
     # 기본 계약 정보 (현재 값 기준)
     deadline_date = row[6]  # 입찰 마감일
@@ -98,7 +106,7 @@ def make_change_alert(row, changes, changed_cols, contact_info=None):
     
     # 본문 구성
     email_body = f"""
-안녕하세요, {to_name}님.
+{greeting}
 게임더하기 DRIC_BOT입니다.
 
 [{service_req}] 계약 정보에 변경 사항이 있어 알려드립니다.
@@ -123,13 +131,21 @@ def make_change_alert(row, changes, changed_cols, contact_info=None):
 
 """
     
+    # J열에서 가져온 최신 견적서 상세 정보 추가
+    if estimate_details:
+        formatted_estimate = format_estimate_details(estimate_details)
+        email_body += f"""📋 제출된 견적서 상세 내용:
+{formatted_estimate}
+
+"""
+    
     email_body += """확인 부탁드립니다.
 감사합니다."""
     
     # 텔레그램용 메시지 (더 간결하게)
     telegram_title = f"🔔 [{company}] 계약 정보 변경"
     telegram_body = f"""
-{to_name}님, 게임사 [{company}]의 '{service_req}' 계약 정보가 변경되었습니다.
+{telegram_greeting} [{company}]의 '{service_req}' 계약 정보가 변경되었습니다.
 
 📅 입찰 마감일: {deadline_date}
 🔄 진행상황: {progress_status}
@@ -146,6 +162,14 @@ def make_change_alert(row, changes, changed_cols, contact_info=None):
 - 변경 전: {estimate_changes['old']}
 - 변경 후:
 {estimate_changes['new']}
+"""
+    
+    # J열에서 가져온 최신 견적서 상세 정보 추가
+    if estimate_details:
+        formatted_estimate = format_estimate_details(estimate_details)
+        telegram_body += f"""
+📋 제출된 견적서 상세 내용:
+{formatted_estimate}
 """
     
     return {
@@ -205,6 +229,46 @@ def send_telegram_message(message):
     else:
         print("텔레그램 알림 실패:", response.text)
 
+def generate_email_subject_from_message(message):
+    """
+    메시지 내용을 분석해서 적절한 이메일 제목 생성
+    """
+    # 줄 단위로 분리
+    lines = message.strip().split('\n')
+    first_line = lines[0] if lines else message
+    
+    # 신규 계약 등록 요약 알림
+    if "🆕 신규 계약 등록 알림" in first_line:
+        return "[게임더하기] 신규 계약 등록 알림"
+    
+    # 개별 신규 계약 알림
+    elif "🔔 [" in first_line and "] 신규 계약 업데이트" in first_line:
+        # "🔔 [넥셀론] 신규 계약 업데이트" 형식에서 게임사명 추출
+        match = re.search(r'\[([^\]]+)\]', first_line)
+        if match:
+            company_name = match.group(1)
+            return f"[게임더하기] {company_name} - 신규 계약 업데이트 알림"
+        else:
+            return "[게임더하기] 신규 계약 업데이트 알림"
+    
+    # 개별 게임사 변경사항 알림
+    elif "🔔 [" in first_line and "] 계약 정보 변경" in first_line:
+        # "🔔 [넥셀론] 계약 정보 변경" 형식에서 게임사명 추출
+        match = re.search(r'\[([^\]]+)\]', first_line)
+        if match:
+            company_name = match.group(1)
+            return f"[게임더하기] {company_name} - 계약 정보 변경 알림"
+        else:
+            return "[게임더하기] 계약 정보 변경 알림"
+    
+    # 오류 알림
+    elif "❌" in first_line or "오류" in first_line:
+        return "[게임더하기] 시스템 오류 알림"
+    
+    # 기타 알림
+    else:
+        return "[게임더하기] 시스템 알림"
+
 def send_notification(message):
     """
     통합 알림 함수: 이메일과 텔레그램으로 동시에 알림 발송
@@ -221,13 +285,16 @@ def send_notification(message):
             ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', EMAIL_SENDER)  # 기본값으로 발신자 이메일 사용
             
             if EMAIL_SENDER and EMAIL_APP_PASSWORD and ADMIN_EMAIL:
+                # 메시지 내용에 따라 적절한 제목 생성
+                email_subject = generate_email_subject_from_message(message)
+                
                 yag = yagmail.SMTP(EMAIL_SENDER, EMAIL_APP_PASSWORD)
                 yag.send(
                     to=ADMIN_EMAIL,
-                    subject="🎯 자동화 시스템 알림",
+                    subject=email_subject,
                     contents=message
                 )
-                print("📧 관리자 이메일 알림 발송 완료")
+                print(f"📧 관리자 이메일 알림 발송 완료: {email_subject}")
         except Exception as email_e:
             print(f"📧 이메일 발송 실패: {email_e}")
             
