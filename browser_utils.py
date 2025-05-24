@@ -140,12 +140,9 @@ def crawl_service_req_table_with_estimate(driver):
         print(f"현재 페이지 {current_page} 크롤링 중...")
         
         if current_page > 1:
-            # URL을 직접 구성하여 다른 페이지로 이동
-            # 기본형: https://gsp.kocca.kr/admin/serviceReq/serviceReqListPage.do
-            # 페이지 파라미터 추가: ?pageIndex=2
-            page_url = f"{base_url}?pageIndex={current_page}"
-            print(f"페이지 URL: {page_url}")
-            driver.get(page_url)
+            # JavaScript 함수를 사용하여 페이지 이동
+            print(f"JavaScript로 페이지 {current_page} 이동 중...")
+            driver.execute_script(f"go_Page({current_page})")
             time.sleep(3)  # 페이지 로딩 대기
         
         try:
@@ -207,4 +204,115 @@ def filter_2025_deadline(data):
         deadline = row[6]  # 7번째 컬럼: 입찰 마감일
         if deadline and deadline.startswith('2025'):
             filtered.append(row)
-    return filtered 
+    return filtered
+
+def extract_estimate_number(estimate_cell):
+    """
+    견적서 제출 건 셀에서 serviceReqEstimateListPage('넘버') 추출
+    """
+    try:
+        # <a href="javascript:serviceReqEstimateListPage('12345')">1건</a> 형태에서 넘버 추출
+        link_element = estimate_cell.find_element(By.TAG_NAME, "a")
+        href = link_element.get_attribute("href")
+        
+        # javascript:serviceReqEstimateListPage('12345') 에서 12345 추출
+        import re
+        match = re.search(r"serviceReqEstimateListPage\('(\d+)'\)", href)
+        return match.group(1) if match else ""
+    except:
+        return ""
+
+def crawl_all_pages_optimized(driver):
+    """
+    최적화된 크롤링: 1~10페이지 크롤링, 2025년 조건부 중단, 넘버 추출 포함
+    """
+    # 첫 페이지 로드
+    driver.get(SERVICE_REQ_URL)
+    
+    # 로그인 여부 재확인
+    if 'admin' not in driver.current_url or 'login' in driver.current_url:
+        print("세션이 종료되었거나 로그인 상태가 아닙니다. 다시 로그인합니다.")
+        driver = login()
+        if not driver:
+            return []
+        driver.get(SERVICE_REQ_URL)
+    
+    all_data = []
+    MAX_PAGES = 10  # 최대 10페이지까지 크롤링
+    
+    # 기본 URL 가져오기
+    base_url = driver.current_url
+    print(f"기본 URL: {base_url}")
+    
+    for current_page in range(1, MAX_PAGES + 1):
+        print(f"현재 페이지 {current_page} 크롤링 중...")
+        
+        if current_page > 1:
+            # JavaScript 함수를 사용하여 페이지 이동
+            print(f"JavaScript로 페이지 {current_page} 이동 중...")
+            driver.execute_script(f"go_Page({current_page})")
+            time.sleep(3)  # 페이지 로딩 대기
+        
+        try:
+            # 테이블 찾기
+            table = WebDriverWait(driver, 15).until(
+                EC.presence_of_element_located((By.ID, "dataList"))
+            )
+            
+            # 현재 페이지의 테이블 데이터 추출
+            rows = table.find_elements(By.TAG_NAME, 'tr')
+            
+            if len(rows) <= 1:  # 헤더만 있고 데이터가 없는 경우
+                print(f"페이지 {current_page}에 데이터가 없습니다. 크롤링 종료.")
+                break
+            
+            page_data = []
+            stop_crawling = False
+            
+            for i, row in enumerate(rows):
+                try:
+                    cols = row.find_elements(By.TAG_NAME, 'td')
+                    if not cols or len(cols) < 8:
+                        continue
+                    
+                    row_data = [col.text.strip() for col in cols]
+                    
+                    # 입찰 마감일 확인 (6번째 컬럼)
+                    deadline = row_data[6] if len(row_data) > 6 else ""
+                    if deadline and not deadline.startswith('2025'):
+                        print(f"2025년이 아닌 입찰 마감일 발견: {deadline}. 크롤링 중단.")
+                        stop_crawling = True
+                        break
+                    
+                    # 견적서 제출 건 넘버 추출 (5번째 컬럼)
+                    estimate_number = ""
+                    try:
+                        estimate_text = cols[5].text.strip()
+                        if estimate_text and estimate_text != "0건":
+                            estimate_number = extract_estimate_number(cols[5])
+                    except Exception as e:
+                        print(f"견적서 넘버 추출 실패: {e}")
+                    
+                    # 넘버를 별도 컬럼으로 추가 (10번째 위치)
+                    row_data.append("")  # 9번째: 견적서제출현황 (나중에 필요시 업데이트)
+                    row_data.append(estimate_number)  # 10번째: 견적서 넘버
+                    
+                    page_data.append(row_data)
+                    
+                except Exception as e:
+                    print(f"행 데이터 추출 중 오류: {e}")
+                    continue
+            
+            print(f"페이지 {current_page}에서 {len(page_data)}개 항목 추출 완료")
+            all_data.extend(page_data)
+            
+            # 2025년 아닌 값 발견으로 중단
+            if stop_crawling:
+                break
+                
+        except Exception as e:
+            print(f"페이지 {current_page} 크롤링 중 오류: {e}")
+            break
+    
+    print(f"총 {len(all_data)}개 항목 크롤링 완료 (2025년 입찰 마감일 조건)")
+    return all_data 

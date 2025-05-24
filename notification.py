@@ -203,4 +203,33 @@ def send_telegram_message(message):
     if response.status_code == 200:
         print("텔레그램 알림 전송 완료")
     else:
-        print("텔레그램 알림 실패:", response.text) 
+        print("텔레그램 알림 실패:", response.text)
+
+def send_notification(message):
+    """
+    통합 알림 함수: 이메일과 텔레그램으로 동시에 알림 발송
+    """
+    try:
+        # 텔레그램 알림
+        send_telegram_message(message)
+        print("📱 텔레그램 알림 발송 완료")
+        
+        # 관리자 이메일 알림 (옵션)
+        try:
+            EMAIL_SENDER = os.environ.get('EMAIL_SENDER')
+            EMAIL_APP_PASSWORD = os.environ.get('EMAIL_APP_PASSWORD')
+            ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', EMAIL_SENDER)  # 기본값으로 발신자 이메일 사용
+            
+            if EMAIL_SENDER and EMAIL_APP_PASSWORD and ADMIN_EMAIL:
+                yag = yagmail.SMTP(EMAIL_SENDER, EMAIL_APP_PASSWORD)
+                yag.send(
+                    to=ADMIN_EMAIL,
+                    subject="🎯 자동화 시스템 알림",
+                    contents=message
+                )
+                print("📧 관리자 이메일 알림 발송 완료")
+        except Exception as email_e:
+            print(f"📧 이메일 발송 실패: {email_e}")
+            
+    except Exception as e:
+        print(f"❌ 알림 발송 실패: {e}") 

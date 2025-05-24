@@ -1,6 +1,9 @@
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import time
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
 
 SHEET_NAME = '게임더하기_계약관리'  # 실제 구글 시트 문서명으로 수정
 WORKSHEET_NAME = '게임더하기_계약_2025'  # 실제 워크시트명으로 수정
@@ -9,14 +12,36 @@ CONTACT_SHEET_NAME = '담당자정보'  # 담당자 정보 시트명
 
 # 구글 시트 인증 및 시트 객체 반환
 def get_gsheet():
-    scope = [
-        'https://spreadsheets.google.com/feeds',
-        'https://www.googleapis.com/auth/drive',
-    ]
-    creds = ServiceAccountCredentials.from_json_keyfile_name(GOOGLE_CREDENTIALS_FILE, scope)
-    client = gspread.authorize(creds)
-    sheet = client.open(SHEET_NAME).worksheet(WORKSHEET_NAME)
-    return sheet
+    try:
+        scope = [
+            'https://spreadsheets.google.com/feeds',
+            'https://www.googleapis.com/auth/drive',
+        ]
+        print(f"🔑 구글 시트 인증 시작...")
+        print(f"📄 인증 파일: {GOOGLE_CREDENTIALS_FILE}")
+        
+        creds = ServiceAccountCredentials.from_json_keyfile_name(GOOGLE_CREDENTIALS_FILE, scope)
+        client = gspread.authorize(creds)
+        
+        print(f"📊 시트 문서 열기: {SHEET_NAME}")
+        spreadsheet = client.open(SHEET_NAME)
+        
+        print(f"📋 워크시트 선택: {WORKSHEET_NAME}")
+        sheet = spreadsheet.worksheet(WORKSHEET_NAME)
+        
+        print(f"✅ 구글 시트 연결 성공!")
+        print(f"   - 시트 ID: {spreadsheet.id}")
+        print(f"   - 워크시트 ID: {sheet.id}")
+        print(f"   - 워크시트 제목: {sheet.title}")
+        
+        return sheet
+        
+    except Exception as e:
+        print(f"❌ 구글 시트 연결 실패: {e}")
+        print(f"   - 시트명: {SHEET_NAME}")
+        print(f"   - 워크시트명: {WORKSHEET_NAME}")
+        print(f"   - 인증파일: {GOOGLE_CREDENTIALS_FILE}")
+        raise
 
 def get_contact_map():
     scope = [
@@ -240,3 +265,362 @@ def update_gsheet(filtered_data):
     except Exception as e:
         print(f"시트 업데이트 중 오류 발생: {e}")
         return [], [] 
+
+def compare_and_update_optimized(crawled_data):
+    """
+    최적화된 비교 및 업데이트: 구글시트 전체 데이터와 크롤링 데이터 비교 후 변경사항만 업데이트
+    """
+    try:
+        sheet = get_gsheet()
+        print("구글 시트 전체 데이터 로드 중...")
+        
+        # 시트 데이터를 한 번만 가져오기
+        existing = sheet.get_all_values()
+        print(f"기존 데이터 {len(existing)-1}개 항목 로드 완료")
+        
+        if len(existing) <= 1:  # 헤더만 있는 경우
+            print("구글 시트에 데이터가 없습니다. 모든 크롤링 데이터를 신규 추가합니다.")
+            return add_all_new_data(sheet, crawled_data)
+        
+        header = existing[0]
+        header_len = len(header)
+        
+        # 기존 데이터를 키 기반으로 매핑 (번호+서비스요청명+게임사)
+        existing_data_map = {}
+        for idx, row in enumerate(existing[1:], start=2):
+            if len(row) >= 5:
+                key = (row[0].strip(), row[3].strip(), row[4].strip())
+                existing_data_map[key] = {
+                    'row_index': idx,
+                    'data': row,
+                    'estimate_number': row[10] if len(row) > 10 else ""  # 견적서 넘버
+                }
+        
+        print(f"기존 데이터 키 매핑 완료: {len(existing_data_map)}개 항목")
+        
+        # 변경사항 분석
+        new_rows = []
+        changed_rows = []
+        
+        for crawled_row in crawled_data:
+            if len(crawled_row) < 5:
+                continue
+                
+            key = (crawled_row[0].strip(), crawled_row[3].strip(), crawled_row[4].strip())
+            
+            if key in existing_data_map:
+                # 기존 항목 - 변경사항 확인
+                existing_item = existing_data_map[key]
+                existing_row = existing_item['data']
+                
+                changes = []
+                changed_cols = []
+                
+                # 0-8번째 컬럼 비교 (기본 데이터)
+                for i in range(min(9, len(existing_row), len(crawled_row))):
+                    old_val = existing_row[i].strip() if i < len(existing_row) else ""
+                    new_val = crawled_row[i].strip() if i < len(crawled_row) else ""
+                    
+                    if old_val != new_val:
+                        field_name = header[i] if i < len(header) else f"컬럼{i+1}"
+                        changes.append(f"- {field_name} : {old_val} → {new_val}")
+                        changed_cols.append(field_name)
+                
+                if changes:
+                    print(f"변경사항 감지: {key[0]} - {', '.join(changed_cols)}")
+                    
+                    # 견적서 제출 건수(5번째) 변경 확인
+                    estimate_count_changed = False
+                    if len(crawled_row) > 5 and len(existing_row) > 5:
+                        if existing_row[5].strip() != crawled_row[5].strip():
+                            estimate_count_changed = True
+                    
+                    # 진행상황(8번째) 변경 및 최종계약체결 확인
+                    progress_changed = False
+                    is_final_contract = False
+                    if len(crawled_row) > 8 and len(existing_row) > 8:
+                        if existing_row[8].strip() != crawled_row[8].strip():
+                            progress_changed = True
+                        if crawled_row[8].strip() == "최종계약체결":
+                            is_final_contract = True
+                    
+                    changed_rows.append({
+                        'row_index': existing_item['row_index'],
+                        'crawled_data': crawled_row,
+                        'changes': changes,
+                        'changed_cols': changed_cols,
+                        'estimate_count_changed': estimate_count_changed,
+                        'progress_changed': progress_changed,
+                        'is_final_contract': is_final_contract,
+                        'estimate_number': crawled_row[10] if len(crawled_row) > 10 else ""
+                    })
+            else:
+                # 완전 신규 항목
+                print(f"신규 항목 발견: {key[0]} - {key[2]}")
+                new_rows.append(crawled_row)
+        
+        print(f"\n===== 분석 결과 =====")
+        print(f"신규 항목: {len(new_rows)}개")
+        print(f"변경 항목: {len(changed_rows)}개")
+        
+        # 신규 항목 추가
+        if new_rows:
+            print("\n신규 항목 추가 중...")
+            print(f"시트명 확인: {sheet.title}")
+            print(f"워크시트명 확인: {sheet.worksheet.title if hasattr(sheet, 'worksheet') else 'N/A'}")
+            
+            for i, row in enumerate(new_rows, 1):
+                try:
+                    # 행 길이 맞추기
+                    original_len = len(row)
+                    if len(row) < header_len:
+                        row = row + [''] * (header_len - len(row))
+                    elif len(row) > header_len:
+                        row = row[:header_len]
+                    
+                    print(f"신규 항목 {i}/{len(new_rows)} 추가 중... (원본길이: {original_len}, 조정후: {len(row)})")
+                    print(f"  - 번호: {row[0]}, 서비스요청명: {row[3]}, 게임사: {row[4]}")
+                    
+                    # 구글 시트에 행 추가
+                    result = sheet.append_row(row)
+                    print(f"  ✅ 추가 성공: {result}")
+                    
+                    time.sleep(1)  # API 제한 방지
+                    
+                except Exception as e:
+                    print(f"  ❌ 신규 항목 {i} 추가 실패: {e}")
+                    print(f"  - 실패한 행 데이터: {row[:5] if len(row) >= 5 else row}")
+                    continue
+        
+        # 변경 항목 업데이트
+        updated_rows = []
+        if changed_rows:
+            print("\n변경 항목 업데이트 중...")
+            for item in changed_rows:
+                row_index = item['row_index']
+                crawled_data = item['crawled_data']
+                
+                # 기본 데이터 업데이트 (0-8번째 컬럼)
+                base_data = crawled_data[:9]
+                if len(base_data) < 9:
+                    base_data = base_data + [''] * (9 - len(base_data))
+                
+                # 견적서 제출 건수 변경이고 0건이 아닌 경우 상세 정보 업데이트 필요
+                need_estimate_detail = (
+                    item['estimate_count_changed'] and 
+                    len(crawled_data) > 5 and 
+                    crawled_data[5].strip() != "0건"
+                )
+                
+                if need_estimate_detail:
+                    print(f"견적서 상세 정보 업데이트 필요: {crawled_data[0]}")
+                    # 이 부분은 나중에 main에서 처리
+                
+                # A열부터 I열까지 업데이트 (0-8번째)
+                update_range = f'A{row_index}:I{row_index}'
+                sheet.update(values=[base_data], range_name=update_range)
+                
+                # 견적서 넘버 업데이트 (K열, 10번째)
+                if len(crawled_data) > 10:
+                    estimate_number = crawled_data[10]
+                    if estimate_number:
+                        sheet.update(values=[[estimate_number]], range_name=f'K{row_index}')
+                
+                updated_rows.append(item)
+                time.sleep(2)  # API 제한 방지
+        
+        print(f"\n===== 업데이트 완료 =====")
+        print(f"신규 추가: {len(new_rows)}건")
+        print(f"변경 업데이트: {len(updated_rows)}건")
+        
+        return new_rows, updated_rows
+        
+    except Exception as e:
+        print(f"최적화된 업데이트 중 오류 발생: {e}")
+        return [], []
+
+def add_all_new_data(sheet, crawled_data):
+    """
+    구글 시트가 비어있을 때 모든 데이터를 신규 추가
+    """
+    # 헤더 행을 가져와서 정확한 컬럼 수 확인
+    header = sheet.row_values(1)
+    header_len = len(header)
+    print(f"헤더 컬럼 수: {header_len}")
+    
+    new_rows = []
+    for i, row in enumerate(crawled_data, 1):
+        try:
+            # 행 길이를 헤더 길이에 맞추기
+            original_len = len(row)
+            if len(row) < header_len:
+                row = row + [''] * (header_len - len(row))
+            elif len(row) > header_len:
+                row = row[:header_len]
+            
+            print(f"신규 항목 {i}/{len(crawled_data)} 추가 중... (원본길이: {original_len}, 조정후: {len(row)})")
+            print(f"  - 번호: {row[0]}, 서비스요청명: {row[3] if len(row) > 3 else 'N/A'}, 게임사: {row[4] if len(row) > 4 else 'N/A'}")
+            
+            # 구글 시트에 행 추가
+            result = sheet.append_row(row)
+            print(f"  ✅ 추가 성공")
+            
+            new_rows.append(row)
+            time.sleep(1)  # API 제한 방지
+            
+        except Exception as e:
+            print(f"  ❌ 신규 항목 {i} 추가 실패: {e}")
+            print(f"  - 실패한 행 데이터: {row[:5] if len(row) >= 5 else row}")
+            continue
+    
+    return new_rows, []
+
+def get_estimate_details_by_number(driver, estimate_number):
+    """
+    견적서 넘버를 사용해서 상세 페이지에서 견적 정보 추출
+    """
+    try:
+        # JavaScript로 상세 페이지 호출
+        driver.execute_script(f"serviceReqEstimateListPage('{estimate_number}')")
+        
+        # 상세페이지 테이블 로딩 대기
+        WebDriverWait(driver, 15).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "div.division30 #dataList"))
+        )
+        time.sleep(1)
+        
+        # 견적 정보 추출 (기존 방식과 동일)
+        detail_rows = driver.find_elements(By.CSS_SELECTOR, "div.division30 #dataList tbody tr")
+        estimates = []
+        for drow in detail_rows:
+            dtds = drow.find_elements(By.TAG_NAME, "td")
+            if len(dtds) < 7:
+                continue
+            협력사 = dtds[2].text.strip()
+            견적일자 = dtds[4].text.strip()
+            견적금액 = dtds[5].text.strip()
+            estimates.append(f"{협력사}({견적금액}, {견적일자})")
+        
+        # 원래 페이지로 복귀
+        driver.back()
+        WebDriverWait(driver, 15).until(
+            EC.presence_of_element_located((By.ID, "dataList"))
+        )
+        time.sleep(1)
+        
+        return '\n'.join(estimates) if estimates else "없음"
+        
+    except Exception as e:
+        print(f"견적서 상세 정보 추출 실패: {e}")
+        return "없음"
+
+def get_contract_details_by_number(driver, estimate_number):
+    """
+    최종계약체결시 계약 상세 정보 추출
+    """
+    try:
+        # JavaScript로 상세 페이지 호출
+        driver.execute_script(f"serviceReqEstimateListPage('{estimate_number}')")
+        
+        # 상세페이지 테이블 로딩 대기
+        WebDriverWait(driver, 15).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "div.division30 #dataList"))
+        )
+        time.sleep(1)
+        
+        # 계약 정보 추출
+        detail_rows = driver.find_elements(By.CSS_SELECTOR, "div.division30 #dataList tbody tr")
+        
+        # "최종계약체결" 상태인 협력사 찾기
+        selected_company = ""
+        contract_amount = ""
+        start_date = ""
+        end_date = ""
+        
+        for row in detail_rows:
+            dtds = row.find_elements(By.TAG_NAME, "td")
+            
+            if len(dtds) >= 11:  # 11번째 컬럼(진행상황)까지 있는지 확인
+                try:
+                    # 11번째 컬럼(진행상황) 확인
+                    progress_cell = dtds[10]  # 0부터 시작하므로 11번째는 인덱스 10
+                    a_tag = progress_cell.find_element(By.TAG_NAME, "a")
+                    
+                    if a_tag.text.strip() == "최종계약체결":
+                        # 이 행이 선정된 협력사!
+                        print(f"최종계약체결 협력사 발견: {dtds[2].text.strip()}")
+                        
+                        selected_company = dtds[2].text.strip()  # 협력사
+                        contract_amount = dtds[5].text.strip()   # 견적금액 (계약금액으로 사용)
+                        
+                        # 계약기간 (과업기간) - 8번째 항목
+                        contract_period = dtds[7].text.strip()
+                        if ' ~ ' in contract_period:
+                            start_date, end_date = contract_period.split(' ~ ')
+                            start_date = start_date.strip()
+                            end_date = end_date.strip()
+                        
+                        break  # 찾았으므로 루프 종료
+                        
+                except Exception as e:
+                    # a태그가 없거나 다른 형태인 경우 건너뜀
+                    continue
+        
+        # 원래 페이지로 복귀
+        driver.back()
+        WebDriverWait(driver, 15).until(
+            EC.presence_of_element_located((By.ID, "dataList"))
+        )
+        time.sleep(1)
+        
+        return {
+            'company': selected_company,
+            'amount': contract_amount,
+            'start_date': start_date,
+            'end_date': end_date
+        }
+        
+    except Exception as e:
+        print(f"계약 상세 정보 추출 실패: {e}")
+        return None
+
+def update_estimate_details(sheet, row_index, estimate_details):
+    """
+    J열(9번째 컬럼)에 견적서 상세 정보 업데이트
+    """
+    try:
+        sheet.update(values=[[estimate_details]], range_name=f'J{row_index}')
+        print(f"견적서 상세 정보 업데이트 완료: 행 {row_index}")
+        time.sleep(1)
+    except Exception as e:
+        print(f"견적서 상세 정보 업데이트 실패: {e}")
+
+def update_contract_details(sheet, row_index, contract_details):
+    """
+    K열(계약협력사), L열(계약금액), M열(업무시작일), N열(업무종료일) 업데이트
+    """
+    try:
+        # K열: 계약협력사
+        if contract_details['company']:
+            sheet.update(values=[[contract_details['company']]], range_name=f'K{row_index}')
+            print(f"계약협력사 업데이트 완료: 행 {row_index}")
+        
+        # L열: 계약금액  
+        if contract_details['amount']:
+            sheet.update(values=[[contract_details['amount']]], range_name=f'L{row_index}')
+            print(f"계약금액 업데이트 완료: 행 {row_index}")
+        
+        # M열: 업무시작일
+        if contract_details['start_date']:
+            sheet.update(values=[[contract_details['start_date']]], range_name=f'M{row_index}')
+            print(f"업무시작일 업데이트 완료: 행 {row_index}")
+        
+        # N열: 업무종료일
+        if contract_details['end_date']:
+            sheet.update(values=[[contract_details['end_date']]], range_name=f'N{row_index}')
+            print(f"업무종료일 업데이트 완료: 행 {row_index}")
+            
+        time.sleep(2)  # API 제한 방지
+        
+    except Exception as e:
+        print(f"계약 상세 정보 업데이트 실패: {e}") 
