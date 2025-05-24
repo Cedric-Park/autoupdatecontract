@@ -17,19 +17,19 @@ def get_gsheet():
             'https://spreadsheets.google.com/feeds',
             'https://www.googleapis.com/auth/drive',
         ]
-        print(f"🔑 구글 시트 인증 시작...")
-        print(f"📄 인증 파일: {GOOGLE_CREDENTIALS_FILE}")
+        print(f"[AUTH] 구글 시트 인증 시작...")
+        print(f"[INFO] 인증 파일: {GOOGLE_CREDENTIALS_FILE}")
         
         creds = ServiceAccountCredentials.from_json_keyfile_name(GOOGLE_CREDENTIALS_FILE, scope)
         client = gspread.authorize(creds)
         
-        print(f"📊 시트 문서 열기: {SHEET_NAME}")
+        print(f"[SHEET] 시트 문서 열기: {SHEET_NAME}")
         spreadsheet = client.open(SHEET_NAME)
         
-        print(f"📋 워크시트 선택: {WORKSHEET_NAME}")
+        print(f"[ESTIMATE] 워크시트 선택: {WORKSHEET_NAME}")
         sheet = spreadsheet.worksheet(WORKSHEET_NAME)
         
-        print(f"✅ 구글 시트 연결 성공!")
+        print(f"[OK] 구글 시트 연결 성공!")
         print(f"   - 시트 ID: {spreadsheet.id}")
         print(f"   - 워크시트 ID: {sheet.id}")
         print(f"   - 워크시트 제목: {sheet.title}")
@@ -37,7 +37,7 @@ def get_gsheet():
         return sheet
         
     except Exception as e:
-        print(f"❌ 구글 시트 연결 실패: {e}")
+        print(f"[ERROR] 구글 시트 연결 실패: {e}")
         print(f"   - 시트명: {SHEET_NAME}")
         print(f"   - 워크시트명: {WORKSHEET_NAME}")
         print(f"   - 인증파일: {GOOGLE_CREDENTIALS_FILE}")
@@ -383,12 +383,12 @@ def compare_and_update_optimized(crawled_data):
                     
                     # 구글 시트에 행 추가
                     result = sheet.append_row(row)
-                    print(f"  ✅ 추가 성공: {result}")
+                    print(f"  [OK] 추가 성공: {result}")
                     
                     time.sleep(1)  # API 제한 방지
                     
                 except Exception as e:
-                    print(f"  ❌ 신규 항목 {i} 추가 실패: {e}")
+                    print(f"  [ERROR] 신규 항목 {i} 추가 실패: {e}")
                     print(f"  - 실패한 행 데이터: {row[:5] if len(row) >= 5 else row}")
                     continue
         
@@ -463,13 +463,13 @@ def add_all_new_data(sheet, crawled_data):
             
             # 구글 시트에 행 추가
             result = sheet.append_row(row)
-            print(f"  ✅ 추가 성공")
+            print(f"  [OK] 추가 성공")
             
             new_rows.append(row)
             time.sleep(1)  # API 제한 방지
             
         except Exception as e:
-            print(f"  ❌ 신규 항목 {i} 추가 실패: {e}")
+            print(f"  [ERROR] 신규 항목 {i} 추가 실패: {e}")
             print(f"  - 실패한 행 데이터: {row[:5] if len(row) >= 5 else row}")
             continue
     

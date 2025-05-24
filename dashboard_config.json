@@ -1,0 +1,6 @@
+{
+  "execution_interval": 5,
+  "auto_start": false,
+  "notifications_enabled": true,
+  "immediate_start": true
+}

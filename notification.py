@@ -60,7 +60,7 @@ def make_change_alert(row, changes, changed_cols, contact_info=None, estimate_de
     else:
         to_name = "담당자"
         greeting = f"안녕하세요."
-        telegram_greeting = f"⚠️ 담당자 미등록 | 게임사"
+        telegram_greeting = f"[WARNING] 담당자 미등록 | 게임사"
     
     # 기본 계약 정보 (현재 값 기준)
     deadline_date = row[6]  # 입찰 마감일
@@ -134,7 +134,7 @@ def make_change_alert(row, changes, changed_cols, contact_info=None, estimate_de
     # J열에서 가져온 최신 견적서 상세 정보 추가
     if estimate_details:
         formatted_estimate = format_estimate_details(estimate_details)
-        email_body += f"""📋 제출된 견적서 상세 내용:
+        email_body += f"""[ESTIMATE] 제출된 견적서 상세 내용:
 {formatted_estimate}
 
 """
@@ -143,7 +143,7 @@ def make_change_alert(row, changes, changed_cols, contact_info=None, estimate_de
 감사합니다."""
     
     # 텔레그램용 메시지 (더 간결하게)
-    telegram_title = f"🔔 [{company}] 계약 정보 변경"
+    telegram_title = f"🚨 [{company}] 계약 정보 변경"
     telegram_body = f"""
 {telegram_greeting} [{company}]의 '{service_req}' 계약 정보가 변경되었습니다.
 
@@ -237,32 +237,26 @@ def generate_email_subject_from_message(message):
     lines = message.strip().split('\n')
     first_line = lines[0] if lines else message
     
-    # 신규 계약 등록 요약 알림
-    if "🆕 신규 계약 등록 알림" in first_line:
-        return "[게임더하기] 신규 계약 등록 알림"
-    
     # 개별 신규 계약 알림
-    elif "🔔 [" in first_line and "] 신규 계약 업데이트" in first_line:
+    if "신규 계약 업데이트" in first_line:
         # "🔔 [넥셀론] 신규 계약 업데이트" 형식에서 게임사명 추출
         match = re.search(r'\[([^\]]+)\]', first_line)
         if match:
             company_name = match.group(1)
             return f"[게임더하기] {company_name} - 신규 계약 업데이트 알림"
-        else:
-            return "[게임더하기] 신규 계약 업데이트 알림"
+        return "[게임더하기] 신규 계약 업데이트 알림"
     
     # 개별 게임사 변경사항 알림
-    elif "🔔 [" in first_line and "] 계약 정보 변경" in first_line:
-        # "🔔 [넥셀론] 계약 정보 변경" 형식에서 게임사명 추출
+    elif "계약 정보 변경" in first_line:
+        # "🚨 [넥셀론] 계약 정보 변경" 형식에서 게임사명 추출
         match = re.search(r'\[([^\]]+)\]', first_line)
         if match:
             company_name = match.group(1)
             return f"[게임더하기] {company_name} - 계약 정보 변경 알림"
-        else:
-            return "[게임더하기] 계약 정보 변경 알림"
+        return "[게임더하기] 계약 정보 변경 알림"
     
     # 오류 알림
-    elif "❌" in first_line or "오류" in first_line:
+    elif "[ERROR]" in first_line or "오류" in first_line:
         return "[게임더하기] 시스템 오류 알림"
     
     # 기타 알림
@@ -276,7 +270,7 @@ def send_notification(message):
     try:
         # 텔레그램 알림
         send_telegram_message(message)
-        print("📱 텔레그램 알림 발송 완료")
+        print("[TELEGRAM] 텔레그램 알림 발송 완료")
         
         # 관리자 이메일 알림 (옵션)
         try:
@@ -294,9 +288,9 @@ def send_notification(message):
                     subject=email_subject,
                     contents=message
                 )
-                print(f"📧 관리자 이메일 알림 발송 완료: {email_subject}")
+                print(f"[EMAIL] 관리자 이메일 알림 발송 완료: {email_subject}")
         except Exception as email_e:
-            print(f"📧 이메일 발송 실패: {email_e}")
+            print(f"[EMAIL] 이메일 발송 실패: {email_e}")
             
     except Exception as e:
-        print(f"❌ 알림 발송 실패: {e}") 
+        print(f"[ERROR] 알림 발송 실패: {e}") 

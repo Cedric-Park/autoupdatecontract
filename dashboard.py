@@ -7,19 +7,17 @@ from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 import subprocess
 import os
+import re
 
 class GameDashboard:
     def __init__(self, root):
         self.root = root
-        self.root.title("게임더하기 계약 관리 자동화 대시보드")
-        self.root.geometry("800x600")
+        self.root.title("[GAME] 게임더하기 계약 관리 자동화 대시보드")
+        self.root.geometry("800x700")
         
         # 스케줄러 초기화
         self.scheduler = BackgroundScheduler()
         self.scheduler.start()
-        
-        # 설정 파일 로드
-        self.config = self.load_config()
         
         # 상태 변수들
         self.is_running = False
@@ -29,29 +27,41 @@ class GameDashboard:
         self.success_count = 0
         self.error_count = 0
         
-        self.create_widgets()
-        self.update_status()
+        # 설정 로드
+        self.config = self.load_config()
         
+        # UI 생성
+        self.create_widgets()
+        
+        # 버튼 상태 초기화
+        self.update_buttons()
+        
+        # 상태 업데이트 시작
+        self.update_status()
+    
     def load_config(self):
         """설정 파일 로드"""
-        try:
-            with open('dashboard_config.json', 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except FileNotFoundError:
-            # 기본 설정
-            default_config = {
-                "execution_interval": 60,  # 분 단위
-                "auto_start": False,
-                "notifications_enabled": True
-            }
-            self.save_config(default_config)
-            return default_config
+        config_file = "dashboard_config.json"
+        default_config = {
+            "execution_interval": 60,
+            "last_settings": {},
+            "immediate_start": True
+        }
+        
+        if os.path.exists(config_file):
+            try:
+                with open(config_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except:
+                return default_config
+        return default_config
     
     def save_config(self, config=None):
         """설정 파일 저장"""
         if config is None:
             config = self.config
-        with open('dashboard_config.json', 'w', encoding='utf-8') as f:
+        
+        with open("dashboard_config.json", 'w', encoding='utf-8') as f:
             json.dump(config, f, ensure_ascii=False, indent=2)
     
     def create_widgets(self):
@@ -61,27 +71,24 @@ class GameDashboard:
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
         # 제목
-        title_label = ttk.Label(main_frame, text="🎮 게임더하기 계약 관리 자동화 시스템", 
+        title_label = ttk.Label(main_frame, text="🎮 게임더하기 계약 관리 자동화 대시보드", 
                                font=('Arial', 16, 'bold'))
         title_label.grid(row=0, column=0, columnspan=3, pady=(0, 20))
         
-        # === 상태 표시 영역 ===
+        # === 상태 영역 ===
         status_frame = ttk.LabelFrame(main_frame, text="📊 실행 상태", padding="10")
         status_frame.grid(row=1, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 10))
         
-        # 실행 상태
-        self.status_label = ttk.Label(status_frame, text="🔴 중지됨", font=('Arial', 12, 'bold'))
-        self.status_label.grid(row=0, column=0, sticky=tk.W)
+        self.status_label = ttk.Label(status_frame, text="🔴 중지됨", 
+                                     font=('Arial', 12, 'bold'), foreground="red")
+        self.status_label.grid(row=0, column=0, sticky=tk.W, pady=2)
         
-        # 마지막 실행 시간
         self.last_exec_label = ttk.Label(status_frame, text="마지막 실행: 없음")
         self.last_exec_label.grid(row=1, column=0, sticky=tk.W, pady=2)
         
-        # 다음 실행 시간
         self.next_exec_label = ttk.Label(status_frame, text="다음 실행: 없음")
         self.next_exec_label.grid(row=2, column=0, sticky=tk.W, pady=2)
         
-        # 카운트다운
         self.countdown_label = ttk.Label(status_frame, text="", font=('Arial', 10))
         self.countdown_label.grid(row=3, column=0, sticky=tk.W, pady=2)
         
@@ -120,6 +127,12 @@ class GameDashboard:
                              command=self.save_settings)
         save_btn.grid(row=0, column=3, padx=10)
         
+        # 즉시 실행 옵션
+        self.immediate_start_var = tk.BooleanVar(value=self.config.get('immediate_start', True))
+        immediate_check = ttk.Checkbutton(settings_frame, text="자동 실행 시작 시 즉시 1회 실행", 
+                                         variable=self.immediate_start_var)
+        immediate_check.grid(row=1, column=0, columnspan=4, sticky=tk.W, pady=(5, 0))
+        
         # === 통계 영역 ===
         stats_frame = ttk.LabelFrame(main_frame, text="📈 실행 통계", padding="10")
         stats_frame.grid(row=4, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 10))
@@ -148,7 +161,20 @@ class GameDashboard:
         log_frame.rowconfigure(0, weight=1)
         
         # 초기 로그 메시지
-        self.add_log("🚀 대시보드가 시작되었습니다.")
+        self.add_log("[START] 대시보드가 시작되었습니다.")
+    
+    def clean_log_message(self, message):
+        """로그 메시지에서 이모지 제거 (대시보드 표시용)"""
+        # 일반적인 이모지 패턴 제거
+        emoji_pattern = re.compile("["
+                                 u"\U0001F600-\U0001F64F"  # 감정
+                                 u"\U0001F300-\U0001F5FF"  # 기호 & 픽토그램
+                                 u"\U0001F680-\U0001F6FF"  # 교통 & 지도
+                                 u"\U0001F1E0-\U0001F1FF"  # 국기
+                                 u"\U00002600-\U000026FF"  # 기타 기호
+                                 u"\U00002700-\U000027BF"  # 딩배트
+                                 "]+", flags=re.UNICODE)
+        return emoji_pattern.sub('', message).strip()
     
     def add_log(self, message):
         """로그 메시지 추가"""
@@ -167,6 +193,7 @@ class GameDashboard:
         """자동 실행 스케줄러 시작"""
         if not self.is_running:
             interval = int(self.interval_var.get())
+            immediate_start = self.immediate_start_var.get()
             
             # 기존 작업 제거
             self.scheduler.remove_all_jobs()
@@ -182,7 +209,15 @@ class GameDashboard:
             self.is_running = True
             self.next_execution = datetime.now() + timedelta(minutes=interval)
             
-            self.add_log(f"✅ 자동 실행이 시작되었습니다. (주기: {interval}분)")
+            self.add_log(f"[OK] 자동 실행이 시작되었습니다. (주기: {interval}분)")
+            
+            # 즉시 실행 옵션 확인
+            if immediate_start:
+                self.add_log("[START] 첫 번째 실행을 즉시 시작합니다...")
+                threading.Thread(target=self.execute_crawler, daemon=True).start()
+            else:
+                self.add_log(f"[WAIT] {interval}분 후 첫 번째 실행이 시작됩니다.")
+            
             self.update_buttons()
     
     def stop_scheduler(self):
@@ -192,32 +227,94 @@ class GameDashboard:
             self.is_running = False
             self.next_execution = None
             
-            self.add_log("⏹️ 자동 실행이 중지되었습니다.")
+            self.add_log("[STOP] 자동 실행이 중지되었습니다.")
             self.update_buttons()
     
     def manual_execution(self):
         """수동으로 즉시 실행"""
-        self.add_log("🚀 수동 실행을 시작합니다...")
+        self.add_log("[START] 수동 실행을 시작합니다...")
         threading.Thread(target=self.execute_crawler, daemon=True).start()
     
     def execute_crawler(self):
-        """크롤러 실행"""
+        """크롤러 실행 - 실시간 로그 표시"""
         try:
-            self.add_log("🔍 크롤링을 시작합니다...")
+            self.add_log("[CRAWL] 크롤링을 시작합니다...")
             
-            # login_and_crawl.py 실행
-            result = subprocess.run(['python', 'login_and_crawl.py'], 
-                                  capture_output=True, text=True, encoding='utf-8')
+            # Windows 환경 한글 처리를 위한 설정
+            import sys
+            if sys.platform.startswith('win'):
+                # Windows에서는 cp949 인코딩 사용
+                encoding = 'cp949'
+            else:
+                encoding = 'utf-8'
+            
+            # login_and_crawl.py 실행 (실시간 출력, 안전한 인코딩)
+            process = subprocess.Popen(['python', 'login_and_crawl.py'], 
+                                     stdout=subprocess.PIPE, 
+                                     stderr=subprocess.STDOUT,
+                                     text=True,
+                                     encoding=encoding,
+                                     errors='ignore',  # 인코딩 오류 무시
+                                     bufsize=1)
+            
+            # 실시간으로 출력 읽기
+            output_lines = []
+            while True:
+                try:
+                    line = process.stdout.readline()
+                    if line:
+                        line = line.strip()
+                        if line:  # 빈 줄 제외
+                            output_lines.append(line)
+                            # 대시보드에 실시간 로그 표시 (안전한 방식)
+                            def safe_add_log(msg):
+                                try:
+                                    # 이모지 제거 후 로그 표시
+                                    clean_msg = self.clean_log_message(msg)
+                                    self.add_log(f"[LOG] {clean_msg}")
+                                except:
+                                    self.add_log(f"[LOG] [로그 표시 오류]")
+                            
+                            self.root.after(0, lambda msg=line: safe_add_log(msg))
+                    elif process.poll() is not None:
+                        break
+                except UnicodeDecodeError as e:
+                    # 인코딩 오류 발생시 건너뛰기
+                    self.root.after(0, lambda: self.add_log("[INFO] [인코딩 오류로 일부 로그 생략]"))
+                    continue
+                except Exception as e:
+                    self.root.after(0, lambda: self.add_log(f"[INFO] [로그 읽기 오류: {str(e)}]"))
+                    continue
+            
+            # 프로세스 완료 대기
+            return_code = process.wait()
             
             self.execution_count += 1
             self.last_execution = datetime.now()
             
-            if result.returncode == 0:
+            if return_code == 0:
                 self.success_count += 1
-                self.add_log("✅ 크롤링이 성공적으로 완료되었습니다.")
+                self.add_log("[OK] 크롤링이 성공적으로 완료되었습니다.")
+                
+                # 주요 결과 요약 표시
+                summary_keywords = ['신규 계약', '변경사항', '알림 발송', '업데이트 완료', '크롤링 완료', 
+                                   '이메일', '텔레그램', '구글 시트']
+                summary_lines = [line for line in output_lines if any(keyword in line for keyword in summary_keywords)]
+                if summary_lines:
+                    self.add_log("[RESULT] 실행 결과 요약:")
+                    for summary in summary_lines[-5:]:  # 최근 5개만
+                        self.add_log(f"   • {summary}")
             else:
                 self.error_count += 1
-                self.add_log(f"❌ 크롤링 실행 중 오류 발생: {result.stderr[:100]}...")
+                self.add_log(f"[ERROR] 크롤링 실행 중 오류 발생 (코드: {return_code})")
+                
+                # 오류 메시지 표시
+                error_keywords = ['error', 'exception', 'failed', '오류', '실패', 'traceback', 'modulenotfound']
+                error_lines = [line for line in output_lines if any(keyword in line.lower() for keyword in error_keywords)]
+                if error_lines:
+                    self.add_log("[CRAWL] 오류 상세:")
+                    for error in error_lines[-3:]:  # 최근 3개 오류만
+                        self.add_log(f"   [ERROR] {error[:100]}...")  # 긴 오류는 자르기
             
             # 다음 실행 시간 업데이트
             if self.is_running:
@@ -226,14 +323,16 @@ class GameDashboard:
             
         except Exception as e:
             self.error_count += 1
-            self.add_log(f"❌ 실행 중 예외 발생: {str(e)}")
+            self.add_log(f"[ERROR] 실행 중 예외 발생: {str(e)}")
+            self.add_log("[TIP] 문제 해결을 위해 직접 실행해보세요: python login_and_crawl.py")
     
     def save_settings(self):
         """설정 저장"""
         try:
             self.config['execution_interval'] = int(self.interval_var.get())
+            self.config['immediate_start'] = self.immediate_start_var.get()
             self.save_config()
-            self.add_log("💾 설정이 저장되었습니다.")
+            self.add_log("[SAVE] 설정이 저장되었습니다.")
             
             # 실행 중이면 스케줄러 재시작
             if self.is_running:
@@ -275,7 +374,7 @@ class GameDashboard:
             if time_left.total_seconds() > 0:
                 minutes = int(time_left.total_seconds() // 60)
                 seconds = int(time_left.total_seconds() % 60)
-                self.countdown_label.configure(text=f"⏰ {minutes}분 {seconds}초 후 실행")
+                self.countdown_label.configure(text=f"[WAIT] {minutes}분 {seconds}초 후 실행")
             else:
                 self.countdown_label.configure(text="")
         else:
