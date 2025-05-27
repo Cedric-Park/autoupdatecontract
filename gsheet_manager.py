@@ -171,12 +171,12 @@ def update_gsheet(filtered_data):
         if header_len > 26:
             last_col = 'A' + chr(65 + (header_len - 1) % 26)  # AA, AB, ...
 
-        # 번호+서비스요청명+게임사 기준으로 키 생성
+        # 번호+게임사 기준으로 키 생성 (서비스요청명 제외)
         existing_keys = {}  # 키 -> 인덱스 매핑으로 변경
         existing_data = {}  # 키 -> 행 데이터 매핑 (디버깅용)
         for idx, row in enumerate(existing[1:], start=2):
             if len(row) >= 5:  # 최소 5개 컬럼이 있는지 확인
-                key = (row[0].strip(), row[3].strip(), row[4].strip())
+                key = (row[0].strip(), row[4].strip())  # 번호와 게임사만으로 고유키 생성
                 existing_keys[key] = idx
                 existing_data[key] = row
         
@@ -196,7 +196,7 @@ def update_gsheet(filtered_data):
             if len(row) < 5:
                 continue
                 
-            key = (row[0].strip(), row[3].strip(), row[4].strip())
+            key = (row[0].strip(), row[4].strip())  # 번호와 게임사만으로 고유키 생성
             item_id = row[0].strip() if len(row) > 0 else "알 수 없음"
             
             if key in existing_keys:
@@ -225,8 +225,8 @@ def update_gsheet(filtered_data):
                     # API 할당량 초과 방지를 위한 지연
                     time.sleep(API_DELAY)
             else:
-                # 완전 신규 항목
-                print(f"신규 항목 발견: ID={item_id}")
+                # 완전 신규 항목 (번호-게임사 기준)
+                print(f"신규 항목 발견: 번호 {item_id} - 게임사 {row[4] if len(row) > 4 else 'N/A'}")
                 
                 # 행 길이 맞추기
                 if len(row) < header_len:
@@ -285,11 +285,11 @@ def compare_and_update_optimized(crawled_data):
         header = existing[0]
         header_len = len(header)
         
-        # 기존 데이터를 키 기반으로 매핑 (번호+서비스요청명+게임사)
+        # 기존 데이터를 키 기반으로 매핑 (번호+게임사)
         existing_data_map = {}
         for idx, row in enumerate(existing[1:], start=2):
             if len(row) >= 5:
-                key = (row[0].strip(), row[3].strip(), row[4].strip())
+                key = (row[0].strip(), row[4].strip())  # 번호와 게임사만으로 고유키 생성
                 existing_data_map[key] = {
                     'row_index': idx,
                     'data': row,
@@ -306,7 +306,7 @@ def compare_and_update_optimized(crawled_data):
             if len(crawled_row) < 5:
                 continue
                 
-            key = (crawled_row[0].strip(), crawled_row[3].strip(), crawled_row[4].strip())
+            key = (crawled_row[0].strip(), crawled_row[4].strip())  # 번호와 게임사만으로 고유키 생성
             
             if key in existing_data_map:
                 # 기존 항목 - 변경사항 확인
@@ -355,8 +355,8 @@ def compare_and_update_optimized(crawled_data):
                         'estimate_number': crawled_row[10] if len(crawled_row) > 10 else ""
                     })
             else:
-                # 완전 신규 항목
-                print(f"신규 항목 발견: {key[0]} - {key[2]}")
+                # 완전 신규 항목 (번호-게임사 기준)
+                print(f"신규 항목 발견: 번호 {key[0]} - 게임사 {key[1]}")
                 new_rows.append(crawled_row)
         
         print(f"\n===== 분석 결과 =====")
