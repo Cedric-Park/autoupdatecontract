@@ -420,11 +420,8 @@ def compare_and_update_optimized(crawled_data):
                 update_range = f'A{row_index}:I{row_index}'
                 sheet.update(values=[base_data], range_name=update_range)
                 
-                # 견적서 넘버 업데이트 (K열, 10번째)
-                if len(crawled_data) > 10:
-                    estimate_number = crawled_data[10]
-                    if estimate_number:
-                        sheet.update(values=[[estimate_number]], range_name=f'K{row_index}')
+                # 견적서 넘버는 페이지 이동용으로만 사용, 구글 시트에는 저장하지 않음
+                # K열은 최종계약체결 시에만 계약협력사명으로 업데이트됨
                 
                 updated_rows.append(item)
                 time.sleep(2)  # API 제한 방지

@@ -1,5 +1,5 @@
 {
-  "execution_interval": 5,
+  "execution_interval": 30,
   "auto_start": false,
   "notifications_enabled": true,
   "immediate_start": true
