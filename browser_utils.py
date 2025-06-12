@@ -224,7 +224,7 @@ def extract_estimate_number(estimate_cell):
 
 def crawl_all_pages_optimized(driver):
     """
-    최적화된 크롤링: 1~10페이지 크롤링, 2025년 조건부 중단, 넘버 추출 포함
+    최적화된 크롤링: 1~15페이지 크롤링, 2025년 조건부 중단, 넘버 추출 포함
     """
     # 첫 페이지 로드
     driver.get(SERVICE_REQ_URL)
@@ -238,7 +238,7 @@ def crawl_all_pages_optimized(driver):
         driver.get(SERVICE_REQ_URL)
     
     all_data = []
-    MAX_PAGES = 10  # 최대 10페이지까지 크롤링
+    MAX_PAGES = 15  # 최대 15페이지까지 크롤링
     
     # 기본 URL 가져오기
     base_url = driver.current_url

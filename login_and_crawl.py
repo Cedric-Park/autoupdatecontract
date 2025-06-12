@@ -163,7 +163,7 @@ def main():
         print("[OK] 로그인 성공!")
         
         # 최적화된 크롤링 시작
-        print("\n[CRAWL] 최적화된 크롤링 시작 (최대 10페이지, 2025년 조건부 중단)")
+        print("\n[CRAWL] 최적화된 크롤링 시작 (최대 15페이지, 2025년 조건부 중단)")
         print("-" * 50)
         
         crawled_data = crawl_all_pages_optimized(driver)
