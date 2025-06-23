@@ -179,7 +179,7 @@ def main():
         print("\n[DATA] 데이터 비교 및 업데이트 시작")
         print("-" * 50)
         
-        new_rows, updated_rows = compare_and_update_optimized(crawled_data)
+        new_rows, updated_rows = compare_and_update_optimized(crawled_data, driver)
         
         # 상세 정보 업데이트 처리 (우선순위 기반)
         estimate_update_count = 0

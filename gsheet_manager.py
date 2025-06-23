@@ -266,9 +266,10 @@ def update_gsheet(filtered_data):
         print(f"시트 업데이트 중 오류 발생: {e}")
         return [], [] 
 
-def compare_and_update_optimized(crawled_data):
+def compare_and_update_optimized(crawled_data, driver):
     """
     최적화된 비교 및 업데이트: 구글시트 전체 데이터와 크롤링 데이터 비교 후 변경사항만 업데이트
+    + 숨겨진 변경(견적 상세) 감지 기능 추가
     """
     try:
         sheet = get_gsheet()
@@ -354,6 +355,39 @@ def compare_and_update_optimized(crawled_data):
                         'is_final_contract': is_final_contract,
                         'estimate_number': crawled_row[10] if len(crawled_row) > 10 else ""
                     })
+                else:
+                    # [DEEP CHECK] 기본 정보 변경이 없을 때, 숨겨진 '견적 내용' 변경 확인
+                    sheet_row = existing_item['data']
+                    estimate_count = sheet_row[5].strip() if len(sheet_row) > 5 else "0건"
+                    progress = sheet_row[8].strip() if len(sheet_row) > 8 else ""
+
+                    # 조건: 견적서 1건 이상, 최종계약체결/신청종료 아님
+                    if estimate_count != "0건" and progress not in ["최종계약체결", "신청종료"]:
+                        estimate_number = crawled_row[10] if len(crawled_row) > 10 else ""
+                        if estimate_number:
+                            print(f"[DEEP CHECK] 행 {existing_item['row_index']} 견적 상세 정보 확인 중...")
+                            
+                            # 현재 웹의 견적 상세 정보 크롤링
+                            current_details = get_estimate_details_by_number(driver, estimate_number)
+                            
+                            # 시트의 기존 견적 상세 정보
+                            old_details = sheet_row[9].strip() if len(sheet_row) > 9 else ""
+                            
+                            if current_details and current_details != "없음" and current_details != old_details:
+                                print(f"[DEEP CHECK] 견적 내용 변경 감지! 행 {existing_item['row_index']}")
+                                
+                                # 시트 J열 업데이트
+                                update_estimate_details(sheet, existing_item['row_index'], current_details)
+                                
+                                # 변경 사항 목록에 추가
+                                changed_rows.append({
+                                    'row_index': existing_item['row_index'],
+                                    'crawled_data': crawled_row,
+                                    'changes': [f"견적 상세 변경: '{old_details}' -> '{current_details}'"],
+                                    'changed_cols': ["견적서제출현황"],
+                                    'estimate_details_changed': True, # 숨겨진 변경 플래그
+                                    'estimate_number': estimate_number
+                                })
             else:
                 # 완전 신규 항목 (번호-게임사 기준)
                 print(f"신규 항목 발견: 번호 {key[0]} - 게임사 {key[1]}")

@@ -46,12 +46,15 @@ def format_estimate_details(estimate_str):
 def make_change_alert(row, changes, changed_cols, contact_info=None, estimate_details=None):
     """
     변경 알림 메시지 생성 함수
-    이메일용과 텔레그램용 메시지를 다르게 생성하고, 견적서 제출현황 등 포맷 개선
+    이메일용과 텔레그램용 메시지를 다르게 생성하고, 숨겨진 변경 유형에 대한 처리 추가
     """
     company = row[4]
     service_req = row[3]
     col_str = ', '.join(changed_cols)
     
+    # 숨겨진 '견적 상세 변경'인지 확인
+    is_hidden_change = 'estimate_details_changed' in changes and changes['estimate_details_changed']
+
     # 담당자 정보 처리
     if contact_info:
         to_name = contact_info['name']
@@ -102,7 +105,10 @@ def make_change_alert(row, changes, changed_cols, contact_info=None, estimate_de
             formatted_changes.append(f"- {field}: {value_change}")
     
     # 이메일용 제목 및 본문
-    email_title = f"[게임더하기] {company} - 계약 정보 변경 알림 [{col_str}]"
+    if is_hidden_change:
+        email_title = f"[게임더하기] {company} - 견적 내용 변경 알림 (금액 등)"
+    else:
+        email_title = f"[게임더하기] {company} - 계약 정보 변경 알림 [{col_str}]"
     
     # 본문 구성
     email_body = f"""
@@ -143,7 +149,11 @@ def make_change_alert(row, changes, changed_cols, contact_info=None, estimate_de
 감사합니다."""
     
     # 텔레그램용 메시지 (더 간결하게)
-    telegram_title = f"🚨 [{company}] 계약 정보 변경"
+    if is_hidden_change:
+        telegram_title = f"🔔 [{company}] 견적 내용 변경"
+    else:
+        telegram_title = f"🚨 [{company}] 계약 정보 변경"
+        
     telegram_body = f"""
 {telegram_greeting} [{company}]의 '{service_req}' 계약 정보가 변경되었습니다.
 
@@ -157,7 +167,11 @@ def make_change_alert(row, changes, changed_cols, contact_info=None, estimate_de
     
     # 견적서 변경 정보가 있는 경우 별도 섹션으로 추가
     if estimate_changes:
-        telegram_body += f"""
+        # 숨겨진 변경의 경우, 변경 전/후를 더 명확하게 보여줌
+        if is_hidden_change:
+            telegram_body += "\n📋 견적 내용 변경:\n" + "\n".join(changes)
+        else:
+            telegram_body += f"""
 📋 견적서 제출 현황:
 - 변경 전: {estimate_changes['old']}
 - 변경 후:
