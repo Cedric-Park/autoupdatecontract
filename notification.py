@@ -279,32 +279,12 @@ def generate_email_subject_from_message(message):
 
 def send_notification(message):
     """
-    통합 알림 함수: 이메일과 텔레그램으로 동시에 알림 발송
+    통합 알림 함수: 텔레그램으로 알림 발송
     """
     try:
         # 텔레그램 알림
         send_telegram_message(message)
         print("[TELEGRAM] 텔레그램 알림 발송 완료")
-        
-        # 관리자 이메일 알림 (옵션)
-        try:
-            EMAIL_SENDER = os.environ.get('EMAIL_SENDER')
-            EMAIL_APP_PASSWORD = os.environ.get('EMAIL_APP_PASSWORD')
-            ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', EMAIL_SENDER)  # 기본값으로 발신자 이메일 사용
-            
-            if EMAIL_SENDER and EMAIL_APP_PASSWORD and ADMIN_EMAIL:
-                # 메시지 내용에 따라 적절한 제목 생성
-                email_subject = generate_email_subject_from_message(message)
-                
-                yag = yagmail.SMTP(EMAIL_SENDER, EMAIL_APP_PASSWORD)
-                yag.send(
-                    to=ADMIN_EMAIL,
-                    subject=email_subject,
-                    contents=message
-                )
-                print(f"[EMAIL] 관리자 이메일 알림 발송 완료: {email_subject}")
-        except Exception as email_e:
-            print(f"[EMAIL] 이메일 발송 실패: {email_e}")
             
     except Exception as e:
         print(f"[ERROR] 알림 발송 실패: {e}") 

@@ -121,7 +121,7 @@ def send_change_notifications(updated_rows):
                 print(f"[ERROR] 견적서 정보 읽기 실패: 행 {row_index} - {e}")
         
         if contact_info:
-            # 담당자가 있는 경우: 개별 이메일 + 관리자 텔레그램
+            # 담당자가 있는 경우: 개별 이메일 + 담당자 텔레그램
             try:
                 alert_data = make_change_alert(
                     item['crawled_data'], 
@@ -135,7 +135,7 @@ def send_change_notifications(updated_rows):
                 send_individual_email(contact_info, alert_data)
                 email_sent += 1
                 
-                # 관리자 텔레그램 발송
+                # 담당자 텔레그램 발송
                 send_notification(alert_data['telegram_message'])
                 telegram_sent += 1
                 
@@ -145,7 +145,7 @@ def send_change_notifications(updated_rows):
                 print(f"[ERROR] 변경 알림 발송 실패: {company} - {e}")
     
     print(f"[EMAIL] 변경사항 개별 이메일 발송: {email_sent}건")
-    print(f"[TELEGRAM] 변경사항 관리자 텔레그램 발송: {telegram_sent}건")
+    print(f"[TELEGRAM] 변경사항 담당자 텔레그램 발송: {telegram_sent}건")
 
 def main():
     print("[START] 최적화된 자동화 시스템 시작")
