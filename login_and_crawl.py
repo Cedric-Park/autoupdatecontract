@@ -13,7 +13,7 @@ from gsheet_manager import (
     get_new_company_contacts,
     get_contact_map
 )
-from notification import send_notification, send_update_emails, make_change_alert
+from notification import send_notification, send_update_emails, make_change_alert, sanitize_text
 
 def send_individual_email(contact_info, alert_data):
     """
@@ -67,16 +67,24 @@ def send_new_contract_notifications(new_rows):
             # 담당자가 있는 게임사에 대한 개별 상세 알림
             contact_info = contact_map[company]
             
-            individual_message = f"""🔔 [{company}] 신규 계약 업데이트
+            # 특수 문자 처리
+            sanitized_company = sanitize_text(company)
+            sanitized_service_req = sanitize_text(service_req)
+            sanitized_service_type = sanitize_text(row[1]) if len(row) > 1 else ""
+            sanitized_deadline = sanitize_text(row[6]) if len(row) > 6 else ""
+            sanitized_estimate = sanitize_text(row[5]) if len(row) > 5 else ""
+            sanitized_progress = sanitize_text(row[8]) if len(row) > 8 else ""
+            
+            individual_message = f"""🔔 [{sanitized_company}] 신규 계약 업데이트
 
-{contact_info['name']}님, 게임사 [{company}]에서 신규 계약이 등록되었습니다.
+{contact_info['name']}님, 게임사 [{sanitized_company}]에서 신규 계약이 등록되었습니다.
 
 📋 계약 정보:
-- 서비스 부문: {row[1]}
-- 서비스 요청명: {service_req}
-- 입찰 마감일: {row[6]}
-- 제출된 견적서: {row[5]}
-- 진행상황: {row[8]}
+- 서비스 부문: {sanitized_service_type}
+- 서비스 요청명: {sanitized_service_req}
+- 입찰 마감일: {sanitized_deadline}
+- 제출된 견적서: {sanitized_estimate}
+- 진행상황: {sanitized_progress}
 
 확인 부탁드립니다."""
             

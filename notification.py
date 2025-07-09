@@ -3,6 +3,25 @@ import os
 import requests
 import re
 
+def sanitize_text(text):
+    """
+    특수 문자를 CP949에서 호환되는 문자로 변환
+    """
+    if not text:
+        return text
+        
+    # 특수 대시(–, \u2013) → 일반 하이픈(-)
+    text = text.replace('\u2013', '-')
+    # 특수 따옴표(' ', " ") → 일반 따옴표(', ")
+    text = text.replace('\u2018', "'").replace('\u2019', "'")
+    text = text.replace('\u201c', '"').replace('\u201d', '"')
+    # 특수 공백 → 일반 공백
+    text = text.replace('\u00a0', ' ')
+    # 기타 특수 문자 제거
+    text = re.sub(r'[\u2000-\u206F]', '', text)
+    
+    return text
+
 def format_estimate_details(estimate_str):
     """
     견적서 세부 정보를 포맷팅하는 함수
@@ -52,6 +71,13 @@ def make_change_alert(row, changes, changed_cols, contact_info=None, estimate_de
     service_req = row[3]
     col_str = ', '.join(changed_cols)
     
+    # 특수 문자 처리
+    sanitized_company = sanitize_text(company)
+    sanitized_service_req = sanitize_text(service_req)
+    sanitized_deadline_date = sanitize_text(row[6]) if len(row) > 6 else ""
+    sanitized_selection_date = sanitize_text(row[7]) if len(row) > 7 else ""
+    sanitized_progress_status = sanitize_text(row[8]) if len(row) > 8 else ""
+    
     # 숨겨진 '견적 상세 변경'인지 확인
     is_hidden_change = 'estimate_details_changed' in changes and changes['estimate_details_changed']
 
@@ -74,7 +100,12 @@ def make_change_alert(row, changes, changed_cols, contact_info=None, estimate_de
     formatted_changes = []
     estimate_changes = None
     
+    # 변경 항목 특수 문자 처리
+    sanitized_changes = []
     for change_str in changes:
+        sanitized_changes.append(sanitize_text(change_str))
+    
+    for change_str in sanitized_changes:
         # 변경 항목 분리
         parts = change_str.split(' : ')
         if len(parts) != 2:
@@ -106,21 +137,21 @@ def make_change_alert(row, changes, changed_cols, contact_info=None, estimate_de
     
     # 이메일용 제목 및 본문
     if is_hidden_change:
-        email_title = f"[게임더하기] {company} - 견적 내용 변경 알림 (금액 등)"
+        email_title = f"[게임더하기] {sanitized_company} - 견적 내용 변경 알림 (금액 등)"
     else:
-        email_title = f"[게임더하기] {company} - 계약 정보 변경 알림 [{col_str}]"
+        email_title = f"[게임더하기] {sanitized_company} - 계약 정보 변경 알림 [{col_str}]"
     
     # 본문 구성
     email_body = f"""
 {greeting}
 게임더하기 DRIC_BOT입니다.
 
-[{service_req}] 계약 정보에 변경 사항이 있어 알려드립니다.
-게임사: {company}
+[{sanitized_service_req}] 계약 정보에 변경 사항이 있어 알려드립니다.
+게임사: {sanitized_company}
 
 계약 기본 정보:
-- 입찰 마감일: {deadline_date}
-- 진행상황: {progress_status}
+- 입찰 마감일: {sanitized_deadline_date}
+- 진행상황: {sanitized_progress_status}
 
 """
     
@@ -139,7 +170,8 @@ def make_change_alert(row, changes, changed_cols, contact_info=None, estimate_de
     
     # J열에서 가져온 최신 견적서 상세 정보 추가
     if estimate_details:
-        formatted_estimate = format_estimate_details(estimate_details)
+        sanitized_estimate_details = sanitize_text(estimate_details)
+        formatted_estimate = format_estimate_details(sanitized_estimate_details)
         email_body += f"""[ESTIMATE] 제출된 견적서 상세 내용:
 {formatted_estimate}
 
@@ -150,15 +182,15 @@ def make_change_alert(row, changes, changed_cols, contact_info=None, estimate_de
     
     # 텔레그램용 메시지 (더 간결하게)
     if is_hidden_change:
-        telegram_title = f"🔔 [{company}] 견적 내용 변경"
+        telegram_title = f"🔔 [{sanitized_company}] 견적 내용 변경"
     else:
-        telegram_title = f"🚨 [{company}] 계약 정보 변경"
+        telegram_title = f"🚨 [{sanitized_company}] 계약 정보 변경"
         
     telegram_body = f"""
-{telegram_greeting} [{company}]의 '{service_req}' 계약 정보가 변경되었습니다.
+{telegram_greeting} [{sanitized_company}]의 '{sanitized_service_req}' 계약 정보가 변경되었습니다.
 
-📅 입찰 마감일: {deadline_date}
-🔄 진행상황: {progress_status}
+📅 입찰 마감일: {sanitized_deadline_date}
+🔄 진행상황: {sanitized_progress_status}
 """
     
     # 변경 항목이 있는 경우 추가
@@ -169,7 +201,7 @@ def make_change_alert(row, changes, changed_cols, contact_info=None, estimate_de
     if estimate_changes:
         # 숨겨진 변경의 경우, 변경 전/후를 더 명확하게 보여줌
         if is_hidden_change:
-            telegram_body += "\n📋 견적 내용 변경:\n" + "\n".join(changes)
+            telegram_body += "\n📋 견적 내용 변경:\n" + "\n".join(sanitized_changes)
         else:
             telegram_body += f"""
 📋 견적서 제출 현황:
@@ -180,7 +212,8 @@ def make_change_alert(row, changes, changed_cols, contact_info=None, estimate_de
     
     # J열에서 가져온 최신 견적서 상세 정보 추가
     if estimate_details:
-        formatted_estimate = format_estimate_details(estimate_details)
+        sanitized_estimate_details = sanitize_text(estimate_details)
+        formatted_estimate = format_estimate_details(sanitized_estimate_details)
         telegram_body += f"""
 📋 제출된 견적서 상세 내용:
 {formatted_estimate}
@@ -213,12 +246,21 @@ def send_update_emails(company_contacts, new_rows):
         contact = company_contacts[company]
         to_email = contact['email']
         to_name = contact['name']
-        subject = f"[게임더하기] {company} 신규 계약 [{row[3]}] 업데이트 알림"
+        
+        # 특수 문자 처리
+        sanitized_company = sanitize_text(company)
+        sanitized_service_name = sanitize_text(row[3]) if len(row) > 3 else ""
+        sanitized_service_type = sanitize_text(row[1]) if len(row) > 1 else ""
+        sanitized_deadline = sanitize_text(row[6]) if len(row) > 6 else ""
+        sanitized_estimate = sanitize_text(row[5]) if len(row) > 5 else ""
+        sanitized_progress = sanitize_text(row[8]) if len(row) > 8 else ""
+        
+        subject = f"[게임더하기] {sanitized_company} 신규 계약 [{sanitized_service_name}] 업데이트 알림"
         body = f"""
 {to_name}님, 안녕하세요.
 게임더하기 DRIC_BOT입니다.
 
-게임사 [{company}]에서 신규 계약(서비스 부문: {row[1]})이 업데이트 되었습니다.\n\n- 서비스 요청명: {row[3]}\n- 입찰 마감일: {row[6]}\n- 제출된 견적서 : {row[5]}\n- 진행상황: {row[8]}\n
+게임사 [{sanitized_company}]에서 신규 계약(서비스 부문: {sanitized_service_type})이 업데이트 되었습니다.\n\n- 서비스 요청명: {sanitized_service_name}\n- 입찰 마감일: {sanitized_deadline}\n- 제출된 견적서 : {sanitized_estimate}\n- 진행상황: {sanitized_progress}\n
 확인 부탁드립니다.
 
 감사합니다.
@@ -235,8 +277,12 @@ def send_telegram_message(message):
     if not token or not chat_id:
         print('텔레그램 토큰 또는 채널 ID가 설정되어 있지 않습니다.')
         return
+    
+    # 특수 문자 처리
+    sanitized_message = sanitize_text(message)
+    
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-    data = {"chat_id": chat_id, "text": message}
+    data = {"chat_id": chat_id, "text": sanitized_message}
     response = requests.post(url, data=data)
     if response.status_code == 200:
         print("텔레그램 알림 전송 완료")
