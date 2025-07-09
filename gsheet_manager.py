@@ -4,11 +4,32 @@ import time
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
+import re
 
 SHEET_NAME = '게임더하기_계약관리'  # 실제 구글 시트 문서명으로 수정
 WORKSHEET_NAME = '게임더하기_계약_2025'  # 실제 워크시트명으로 수정
 GOOGLE_CREDENTIALS_FILE = 'google_service_account.json'  # 서비스 계정 키 파일명
 CONTACT_SHEET_NAME = '담당자정보'  # 담당자 정보 시트명
+
+# 특수 문자 처리 함수 추가
+def sanitize_text(text):
+    """
+    특수 문자를 CP949에서 호환되는 문자로 변환
+    """
+    if not text:
+        return text
+        
+    # 특수 대시(–, \u2013) → 일반 하이픈(-)
+    text = text.replace('\u2013', '-')
+    # 특수 따옴표(' ', " ") → 일반 따옴표(', ")
+    text = text.replace('\u2018', "'").replace('\u2019', "'")
+    text = text.replace('\u201c', '"').replace('\u201d', '"')
+    # 특수 공백 → 일반 공백
+    text = text.replace('\u00a0', ' ')
+    # 기타 특수 문자 제거
+    text = re.sub(r'[\u2000-\u206F]', '', text)
+    
+    return text
 
 # 구글 시트 인증 및 시트 객체 반환
 def get_gsheet():
@@ -405,18 +426,21 @@ def compare_and_update_optimized(crawled_data, driver):
             
             for i, row in enumerate(new_rows, 1):
                 try:
-                    # 행 길이 맞추기
-                    original_len = len(row)
-                    if len(row) < header_len:
-                        row = row + [''] * (header_len - len(row))
-                    elif len(row) > header_len:
-                        row = row[:header_len]
+                    # 특수 문자 처리
+                    sanitized_row = [sanitize_text(cell) for cell in row]
                     
-                    print(f"신규 항목 {i}/{len(new_rows)} 추가 중... (원본길이: {original_len}, 조정후: {len(row)})")
-                    print(f"  - 번호: {row[0]}, 서비스요청명: {row[3]}, 게임사: {row[4]}")
+                    # 행 길이 맞추기
+                    original_len = len(sanitized_row)
+                    if len(sanitized_row) < header_len:
+                        sanitized_row = sanitized_row + [''] * (header_len - len(sanitized_row))
+                    elif len(sanitized_row) > header_len:
+                        sanitized_row = sanitized_row[:header_len]
+                    
+                    print(f"신규 항목 {i}/{len(new_rows)} 추가 중... (원본길이: {original_len}, 조정후: {len(sanitized_row)})")
+                    print(f"  - 번호: {sanitized_row[0]}, 서비스요청명: {sanitized_row[3]}, 게임사: {sanitized_row[4]}")
                     
                     # 구글 시트에 행 추가
-                    result = sheet.append_row(row)
+                    result = sheet.append_row(sanitized_row)
                     print(f"  [OK] 추가 성공: {result}")
                     
                     time.sleep(1)  # API 제한 방지
@@ -482,21 +506,24 @@ def add_all_new_data(sheet, crawled_data):
     new_rows = []
     for i, row in enumerate(crawled_data, 1):
         try:
-            # 행 길이를 헤더 길이에 맞추기
-            original_len = len(row)
-            if len(row) < header_len:
-                row = row + [''] * (header_len - len(row))
-            elif len(row) > header_len:
-                row = row[:header_len]
+            # 특수 문자 처리
+            sanitized_row = [sanitize_text(cell) for cell in row]
             
-            print(f"신규 항목 {i}/{len(crawled_data)} 추가 중... (원본길이: {original_len}, 조정후: {len(row)})")
-            print(f"  - 번호: {row[0]}, 서비스요청명: {row[3] if len(row) > 3 else 'N/A'}, 게임사: {row[4] if len(row) > 4 else 'N/A'}")
+            # 행 길이를 헤더 길이에 맞추기
+            original_len = len(sanitized_row)
+            if len(sanitized_row) < header_len:
+                sanitized_row = sanitized_row + [''] * (header_len - len(sanitized_row))
+            elif len(sanitized_row) > header_len:
+                sanitized_row = sanitized_row[:header_len]
+            
+            print(f"신규 항목 {i}/{len(crawled_data)} 추가 중... (원본길이: {original_len}, 조정후: {len(sanitized_row)})")
+            print(f"  - 번호: {sanitized_row[0]}, 서비스요청명: {sanitized_row[3] if len(sanitized_row) > 3 else 'N/A'}, 게임사: {sanitized_row[4] if len(sanitized_row) > 4 else 'N/A'}")
             
             # 구글 시트에 행 추가
-            result = sheet.append_row(row)
+            result = sheet.append_row(sanitized_row)
             print(f"  [OK] 추가 성공")
             
-            new_rows.append(row)
+            new_rows.append(sanitized_row)
             time.sleep(1)  # API 제한 방지
             
         except Exception as e:
