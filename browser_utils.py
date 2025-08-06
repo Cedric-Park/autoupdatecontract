@@ -8,6 +8,7 @@ import time
 import os
 from dotenv import load_dotenv
 from selenium.webdriver.chrome.options import Options  # Options 클래스 명시적으로 임포트
+import pyotp  # TOTP 인증을 위한 라이브러리
 
 # 로그인 정보
 LOGIN_URL = 'https://gsp.kocca.kr/admin'
@@ -18,11 +19,79 @@ USER_PW = None  # 환경 변수에서 가져옴
 # .env 파일에서 환경변수 불러오기
 def load_env():
     load_dotenv()
-    global USER_ID, USER_PW, EMAIL_SENDER, EMAIL_APP_PASSWORD
+    global USER_ID, USER_PW, EMAIL_SENDER, EMAIL_APP_PASSWORD, OTP_SECRET
     USER_ID = os.environ.get('USER_ID', 'com2us30')  # 기본값 제공
     USER_PW = os.environ.get('USER_PW', 'com2us!@#$')  # 기본값 제공
     EMAIL_SENDER = os.environ.get('EMAIL_SENDER')
     EMAIL_APP_PASSWORD = os.environ.get('EMAIL_APP_PASSWORD')
+    OTP_SECRET = os.environ.get('OTP_SECRET')  # Google Authenticator 비밀 키
+
+def generate_otp_code():
+    """
+    Google Authenticator OTP 코드를 생성하는 함수
+    """
+    if not OTP_SECRET:
+        print("[ERROR] OTP 비밀 키가 설정되지 않았습니다. .env 파일에 OTP_SECRET을 추가하세요.")
+        return None
+        
+    try:
+        # TOTP 객체 생성
+        totp = pyotp.TOTP(OTP_SECRET)
+        
+        # 현재 시간에 유효한 OTP 코드 생성
+        otp_code = totp.now()
+        print(f"[OTP] 생성된 OTP 코드: {otp_code}")
+        return otp_code
+    except Exception as e:
+        print(f"[ERROR] OTP 코드 생성 실패: {e}")
+        return None
+
+def handle_otp_authentication(driver):
+    """
+    OTP 인증 모달을 처리하는 함수
+    """
+    try:
+        # OTP 모달이 나타날 때까지 대기 (최대 5초)
+        print("[OTP] OTP 인증 모달 대기 중...")
+        WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located((By.ID, "otpForm"))
+        )
+        
+        print("[OTP] OTP 인증 모달 감지됨")
+        
+        # OTP 코드 생성
+        otp_code = generate_otp_code()
+        if not otp_code:
+            return False
+            
+        # OTP 입력 필드 찾기
+        otp_input = WebDriverWait(driver, 3).until(
+            EC.presence_of_element_located((By.ID, "user_code"))
+        )
+        
+        # OTP 코드 입력
+        otp_input.send_keys(otp_code)
+        
+        # 확인 버튼 찾기 및 클릭 (CSS 선택자 사용)
+        submit_button = driver.find_element(By.CSS_SELECTOR, "a.btn.save[href='javascript:loginOtp()']")
+        submit_button.click()
+        
+        # 인증 완료 대기
+        time.sleep(2)
+        
+        # 인증 성공 여부 확인
+        if 'admin' in driver.current_url and 'login' not in driver.current_url:
+            print("[OTP] OTP 인증 성공!")
+            return True
+        else:
+            print("[OTP] OTP 인증 실패!")
+            driver.save_screenshot('otp_failed.png')  # 디버깅용 스크린샷
+            return False
+            
+    except Exception as e:
+        print(f"[OTP] OTP 모달을 찾을 수 없거나 처리 중 오류 발생: {e}")
+        # OTP 모달이 없는 경우 - 이미 인증되었거나 모달이 아직 나타나지 않음
+        return True  # 프로세스 계속 진행
 
 def login():
     # 환경 변수 로드 확인
@@ -73,6 +142,14 @@ def login():
         pw_input.send_keys(USER_PW)
         pw_input.send_keys(Keys.RETURN)
         time.sleep(3)  # 로그인 처리 대기 시간 증가
+        
+        # OTP 인증 모달 처리
+        otp_success = handle_otp_authentication(driver)
+        if not otp_success:
+            print("OTP 인증 실패로 로그인 중단")
+            driver.quit()
+            return None
+            
     except Exception as e:
         print(f'로그인 폼 찾기 실패: {e}')
         # 이미 로그인되어 있는지 확인
