@@ -173,6 +173,17 @@ def main():
     telegram_enabled = os.environ.get('TELEGRAM_NOTIFICATIONS', '1') == '1'
     print(f"[CONFIG] 알림 설정 상태: 이메일={'활성화' if email_enabled else '비활성화'}, 텔레그램={'활성화' if telegram_enabled else '비활성화'}")
     
+    # 알림 관련 환경 변수 확인
+    EMAIL_SENDER = os.environ.get('EMAIL_SENDER')
+    EMAIL_APP_PASSWORD = os.environ.get('EMAIL_APP_PASSWORD')
+    TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
+    TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
+    
+    print(f"[CONFIG] 이메일 발송 계정: {EMAIL_SENDER if EMAIL_SENDER else '설정되지 않음'}")
+    print(f"[CONFIG] 이메일 앱 비밀번호: {'설정됨' if EMAIL_APP_PASSWORD else '설정되지 않음'}")
+    print(f"[CONFIG] 텔레그램 봇 토큰: {'설정됨' if TELEGRAM_BOT_TOKEN else '설정되지 않음'}")
+    print(f"[CONFIG] 텔레그램 채팅 ID: {TELEGRAM_CHAT_ID if TELEGRAM_CHAT_ID else '설정되지 않음'}")
+    
     # 브라우저 로그인
     print("[LOGIN] 브라우저 로그인 중...")
     driver = login()
