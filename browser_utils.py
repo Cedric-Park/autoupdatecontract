@@ -7,20 +7,13 @@ from selenium.webdriver.support import expected_conditions as EC
 import time
 import os
 from dotenv import load_dotenv
+from selenium.webdriver.chrome.options import Options  # Options 클래스 명시적으로 임포트
 
 # 로그인 정보
 LOGIN_URL = 'https://gsp.kocca.kr/admin'
 SERVICE_REQ_URL = 'https://gsp.kocca.kr/admin/serviceReq/serviceReqListPage.do'
 USER_ID = None  # 환경 변수에서 가져옴
 USER_PW = None  # 환경 변수에서 가져옴
-
-# 크롬 드라이버 설정
-options = webdriver.ChromeOptions()
-options.add_argument('--headless')  # 브라우저 창을 띄우지 않음
-options.add_argument('--no-sandbox')
-options.add_argument('--disable-dev-shm-usage')
-options.add_argument('--disable-gpu')
-options.add_argument('--window-size=1920,1080')
 
 # .env 파일에서 환경변수 불러오기
 def load_env():
@@ -37,16 +30,29 @@ def login():
         load_env()
         print(f"로그인 정보 로드: ID={USER_ID}")
         
+    # 크롬 드라이버 설정
+    options = Options()
+    options.add_argument('--headless')  # 브라우저 창을 띄우지 않음
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--disable-gpu')
+    options.add_argument('--window-size=1920,1080')
+    
     try:
-        driver = webdriver.Chrome(options=options)
+        # 1. 먼저 프로젝트 폴더의 최신 드라이버 사용 시도
+        chrome_driver_path = "./chromedriver.exe"  # 최신 드라이버 경로
+        print(f"최신 크롬 드라이버 사용 시도: {chrome_driver_path}")
+        driver = webdriver.Chrome(service=Service(chrome_driver_path), options=options)
+        print("최신 크롬 드라이버 로드 성공!")
     except Exception as e:
-        print(f"기본 드라이버 로드 실패: {e}")
+        print(f"최신 드라이버 로드 실패: {e}")
         try:
-            # 백업 방법: 직접 경로 지정
-            chrome_driver_path = "./chromedriver.exe"  # 크롬 드라이버를 프로젝트 폴더에 넣은 경우
-            driver = webdriver.Chrome(service=Service(chrome_driver_path), options=options)
+            # 2. 자동 감지 방식 시도
+            print("자동 감지 방식으로 드라이버 로드 시도...")
+            driver = webdriver.Chrome(options=options)
+            print("자동 감지 드라이버 로드 성공!")
         except Exception as e:
-            print(f"직접 지정 드라이버 로드 실패: {e}")
+            print(f"모든 드라이버 로드 방식 실패: {e}")
             return None
     
     print("브라우저 시작 - 로그인 페이지로 이동 중...")
@@ -315,4 +321,92 @@ def crawl_all_pages_optimized(driver):
             break
     
     print(f"총 {len(all_data)}개 항목 크롤링 완료 (2025년 입찰 마감일 조건)")
+    return all_data 
+
+# 계약변경관리 페이지 URL 추가
+CONTRACT_CHANGE_URL = 'https://gsp.kocca.kr/admin/contract/contractChangeListPage.do'
+
+def crawl_contract_change_pages(driver):
+    """
+    계약변경관리 페이지 크롤링: 2025년 신청일 항목만 크롤링
+    """
+    # 첫 페이지 로드
+    driver.get(CONTRACT_CHANGE_URL)
+    
+    # 로그인 여부 재확인
+    if 'admin' not in driver.current_url or 'login' in driver.current_url:
+        print("[CONTRACT_CHANGE] 세션이 종료되었거나 로그인 상태가 아닙니다. 다시 로그인합니다.")
+        driver = login()
+        if not driver:
+            return []
+        driver.get(CONTRACT_CHANGE_URL)
+    
+    all_data = []
+    MAX_PAGES = 15  # 최대 15페이지까지 크롤링
+    
+    # 기본 URL 가져오기
+    base_url = driver.current_url
+    print(f"[CONTRACT_CHANGE] 기본 URL: {base_url}")
+    
+    for current_page in range(1, MAX_PAGES + 1):
+        print(f"[CONTRACT_CHANGE] 현재 페이지 {current_page} 크롤링 중...")
+        
+        if current_page > 1:
+            # JavaScript 함수를 사용하여 페이지 이동
+            print(f"[CONTRACT_CHANGE] JavaScript로 페이지 {current_page} 이동 중...")
+            driver.execute_script(f"go_Page({current_page})")
+            time.sleep(5)  # 페이지 로딩 대기 시간 증가 (느린 페이지 고려)
+        
+        try:
+            # 테이블 찾기
+            table = WebDriverWait(driver, 20).until(  # 대기 시간 증가
+                EC.presence_of_element_located((By.ID, "dataList"))
+            )
+            
+            # 현재 페이지의 테이블 데이터 추출
+            rows = table.find_elements(By.TAG_NAME, 'tr')
+            
+            if len(rows) <= 1:  # 헤더만 있고 데이터가 없는 경우
+                print(f"[CONTRACT_CHANGE] 페이지 {current_page}에 데이터가 없습니다. 크롤링 종료.")
+                break
+            
+            page_data = []
+            stop_crawling = False
+            
+            for i, row in enumerate(rows):
+                try:
+                    cols = row.find_elements(By.TAG_NAME, 'td')
+                    if not cols or len(cols) < 12:  # 최소 12개 컬럼 필요
+                        continue
+                    
+                    row_data = [col.text.strip() for col in cols]
+                    
+                    # 신청일 확인 (10번째 컬럼, 인덱스 11)
+                    application_date = row_data[10] if len(row_data) > 10 else ""
+                    if application_date and not application_date.startswith('2025'):
+                        print(f"[CONTRACT_CHANGE] 2025년이 아닌 신청일 발견: {application_date}. 이 항목 건너뜀.")
+                        continue
+                    
+                    # 진행상황 확인 (11번째 컬럼, 인덱스 11)
+                    progress_status = row_data[11] if len(row_data) > 11 else ""
+                    
+                    page_data.append(row_data)
+                    
+                except Exception as e:
+                    print(f"[CONTRACT_CHANGE] 행 데이터 추출 중 오류: {e}")
+                    continue
+            
+            print(f"[CONTRACT_CHANGE] 페이지 {current_page}에서 {len(page_data)}개 항목 추출 완료")
+            all_data.extend(page_data)
+            
+            # 데이터가 없으면 크롤링 종료
+            if len(page_data) == 0:
+                print(f"[CONTRACT_CHANGE] 페이지 {current_page}에 2025년 데이터가 없습니다. 크롤링 종료.")
+                break
+                
+        except Exception as e:
+            print(f"[CONTRACT_CHANGE] 페이지 {current_page} 크롤링 중 오류: {e}")
+            break
+    
+    print(f"[CONTRACT_CHANGE] 총 {len(all_data)}개 항목 크롤링 완료 (2025년 신청일 조건)")
     return all_data 

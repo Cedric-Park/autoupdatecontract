@@ -682,3 +682,241 @@ def update_contract_details(sheet, row_index, contract_details):
         
     except Exception as e:
         print(f"계약 상세 정보 업데이트 실패: {e}") 
+
+def process_contract_changes(contract_changes, sheet):
+    """
+    계약변경관리 페이지에서 크롤링한 데이터를 처리하는 함수
+    
+    Args:
+        contract_changes: 계약변경관리 페이지에서 크롤링한 데이터 목록
+        sheet: 구글 시트 객체
+    
+    Returns:
+        updated_contracts: 업데이트된 계약 목록 (알림용)
+    """
+    print("\n[CONTRACT_CHANGE] 계약변경 데이터 처리 시작")
+    print(f"[CONTRACT_CHANGE] 총 {len(contract_changes)}개 항목 처리 예정")
+    
+    # 구글 시트에서 모든 데이터 가져오기
+    all_sheet_data = sheet.get_all_values()
+    header = all_sheet_data[0]  # 헤더 행
+    sheet_data = all_sheet_data[1:]  # 데이터 행 (헤더 제외)
+    
+    # 업데이트된 계약 목록 (알림용)
+    updated_contracts = []
+    
+    # 각 계약변경 항목 처리
+    for change_item in contract_changes:
+        try:
+            # 필요한 데이터 추출
+            # 상세 서비스 부문(3), 서비스 요청명(4), 협력사(5), 게임사(6), 포인트(7), 계약기간(8), 진행상황(11)
+            service_detail = change_item[3] if len(change_item) > 3 else ""
+            service_req_name = change_item[4] if len(change_item) > 4 else ""
+            company = change_item[5] if len(change_item) > 5 else ""
+            game_company = change_item[6] if len(change_item) > 6 else ""
+            points = change_item[7] if len(change_item) > 7 else ""
+            contract_period = change_item[8] if len(change_item) > 8 else ""
+            progress_status = change_item[11] if len(change_item) > 11 else ""
+            
+            # 진행상황이 "계약변경 신청"인 경우 처리하지 않음
+            if progress_status == "계약변경 신청":
+                print(f"[CONTRACT_CHANGE] 계약변경 신청 상태 항목 건너뜀: {service_req_name} ({game_company})")
+                continue
+            
+            # 진행상황이 "계약변경 승인(게임사)" 또는 "계약변경 완료"인 경우만 처리
+            if progress_status not in ["계약변경 승인(게임사)", "계약변경 완료"]:
+                print(f"[CONTRACT_CHANGE] 처리 대상 아님: {service_req_name} ({game_company}) - {progress_status}")
+                continue
+            
+            # 계약기간 분리 (예: "2025-06-23 ~ 2025-07-18" -> "2025-06-23", "2025-07-18")
+            start_date = ""
+            end_date = ""
+            if contract_period and " ~ " in contract_period:
+                dates = contract_period.split(" ~ ")
+                if len(dates) == 2:
+                    start_date = dates[0].strip()
+                    end_date = dates[1].strip()
+            
+            # 구글 시트에서 일치하는 항목 찾기
+            found = False
+            for i, row in enumerate(sheet_data):
+                # 식별자 비교: 상세 서비스 부문(C열), 서비스 요청명(D열), 협력사(K열), 게임사(E열)
+                if (len(row) > 2 and row[2] == service_detail and 
+                    len(row) > 3 and row[3] == service_req_name and 
+                    len(row) > 10 and row[10] == company and 
+                    len(row) > 4 and row[4] == game_company):
+                    
+                    found = True
+                    row_index = i + 2  # 헤더(1) + 인덱스(0부터 시작)
+                    
+                    # 변경 사항 기록
+                    changes = []
+                    
+                    # 기존 값 가져오기
+                    old_points = row[11] if len(row) > 11 else ""
+                    old_start_date = row[12] if len(row) > 12 else ""
+                    old_end_date = row[13] if len(row) > 13 else ""
+                    
+                    # 변경 사항 확인
+                    if points and points != old_points:
+                        changes.append(f"계약금액: {old_points} → {points}")
+                    
+                    if start_date and start_date != old_start_date:
+                        changes.append(f"업무시작일: {old_start_date} → {start_date}")
+                    
+                    if end_date and end_date != old_end_date:
+                        changes.append(f"업무종료일: {old_end_date} → {end_date}")
+                    
+                    # 변경 사항이 있는 경우에만 업데이트 및 알림
+                    if changes:
+                        # 계약금액(L열) 업데이트
+                        if points and points != old_points:
+                            sheet.update(values=[[points]], range_name=f'L{row_index}')
+                            print(f"[CONTRACT_CHANGE] 계약금액 업데이트: {old_points} → {points}")
+                        
+                        # 업무시작일(M열) 업데이트
+                        if start_date and start_date != old_start_date:
+                            sheet.update(values=[[start_date]], range_name=f'M{row_index}')
+                            print(f"[CONTRACT_CHANGE] 업무시작일 업데이트: {old_start_date} → {start_date}")
+                        
+                        # 업무종료일(N열) 업데이트
+                        if end_date and end_date != old_end_date:
+                            sheet.update(values=[[end_date]], range_name=f'N{row_index}')
+                            print(f"[CONTRACT_CHANGE] 업무종료일 업데이트: {old_end_date} → {end_date}")
+                        
+                        # 알림 목록에 추가 (한 번만)
+                        updated_contracts.append({
+                            'service_name': service_req_name,
+                            'game_company': game_company,
+                            'company': company,
+                            'changes': changes,
+                            'row_index': row_index,
+                            'progress_status': progress_status
+                        })
+                        print(f"[CONTRACT_CHANGE] 변경사항 감지: {service_req_name} ({game_company}) - {len(changes)}개 필드 변경")
+                    else:
+                        print(f"[CONTRACT_CHANGE] 변경사항 없음: {service_req_name} ({game_company})")
+                    
+                    # API 제한 방지
+                    time.sleep(1)
+                    break
+            
+            if not found:
+                print(f"[CONTRACT_CHANGE] 일치하는 계약 정보를 찾을 수 없음: {service_req_name} ({game_company})")
+        
+        except Exception as e:
+            print(f"[CONTRACT_CHANGE] 계약변경 처리 중 오류: {e}")
+            continue
+    
+    print(f"[CONTRACT_CHANGE] 계약변경 데이터 처리 완료: {len(updated_contracts)}개 항목 업데이트")
+    return updated_contracts
+
+def send_contract_change_notifications(updated_contracts):
+    """
+    계약변경 알림 발송 함수
+    
+    Args:
+        updated_contracts: 업데이트된 계약 목록
+    """
+    if not updated_contracts:
+        print("[CONTRACT_CHANGE] 알림 대상 없음")
+        return
+    
+    print(f"[CONTRACT_CHANGE] 알림 발송 시작: {len(updated_contracts)}개 항목")
+    
+    # 담당자 정보 가져오기
+    contact_map = get_contact_map()
+    
+    # 알림 발송 통계
+    email_sent = 0
+    telegram_sent = 0
+    
+    for contract in updated_contracts:
+        try:
+            service_req_name = contract['service_name']  # 변수명은 그대로 두고 내부적으로 service_req_name으로 처리
+            game_company = contract['game_company']
+            company = contract['company']
+            changes = contract['changes']
+            progress_status = contract['progress_status']
+            
+            # 담당자 정보 확인
+            contact_info = contact_map.get(game_company)
+            
+            # 담당자가 있는 경우에만 알림 발송
+            if contact_info:
+                # 특수 문자 처리
+                sanitized_service_req_name = sanitize_text(service_req_name)
+                sanitized_game_company = sanitize_text(game_company)
+                sanitized_company = sanitize_text(company)
+                sanitized_progress = sanitize_text(progress_status)
+                
+                # 변경 내용 텍스트 구성
+                changes_text = '\n'.join(changes)
+                sanitized_changes = sanitize_text(changes_text)
+                
+                # 알림 메시지 구성
+                message = f"""🔄 [계약변경] {sanitized_game_company} - {sanitized_service_req_name}
+
+협력사: {sanitized_company}
+진행상황: {sanitized_progress}
+
+변경 내용:
+{sanitized_changes}
+
+계약변경관리 페이지에서 변경 사항이 감지되어 자동으로 업데이트되었습니다."""
+                
+                # 텔레그램 알림 발송
+                from notification import send_notification
+                send_notification(message)
+                telegram_sent += 1
+                print(f"[CONTRACT_CHANGE] 텔레그램 알림 발송 완료: {game_company} - {service_req_name}")
+                
+                # 이메일 발송
+                email_title = f"[게임더하기] {sanitized_game_company} - 계약변경 알림"
+                email_body = f"""
+{contact_info['name']}님, 안녕하세요.
+게임더하기 DRIC_BOT입니다.
+
+[{sanitized_service_req_name}] 계약 정보에 변경 사항이 있어 알려드립니다.
+게임사: {sanitized_game_company}
+협력사: {sanitized_company}
+
+변경 내용:
+{sanitized_changes}
+
+계약변경관리 페이지에서 변경 사항이 감지되어 자동으로 업데이트되었습니다.
+확인 부탁드립니다.
+
+감사합니다.
+"""
+                
+                # 이메일 발송 함수 호출
+                try:
+                    import yagmail
+                    import os
+                    
+                    EMAIL_SENDER = os.environ.get('EMAIL_SENDER')
+                    EMAIL_APP_PASSWORD = os.environ.get('EMAIL_APP_PASSWORD')
+                    
+                    if EMAIL_SENDER and EMAIL_APP_PASSWORD:
+                        yag = yagmail.SMTP(EMAIL_SENDER, EMAIL_APP_PASSWORD)
+                        yag.send(
+                            to=contact_info['email'],
+                            subject=email_title,
+                            contents=email_body
+                        )
+                        email_sent += 1
+                        print(f"[CONTRACT_CHANGE] 이메일 알림 발송 완료: {contact_info['name']}({contact_info['email']})")
+                    else:
+                        print("[CONTRACT_CHANGE] 이메일 환경변수가 설정되지 않았습니다.")
+                        
+                except Exception as e:
+                    print(f"[CONTRACT_CHANGE] 이메일 발송 실패: {e}")
+            else:
+                print(f"[CONTRACT_CHANGE] 담당자 정보 없음: {game_company} - {service_req_name} (알림 발송 건너뜀)")
+            
+        except Exception as e:
+            print(f"[CONTRACT_CHANGE] 알림 발송 중 오류: {e}")
+            continue
+    
+    print(f"[CONTRACT_CHANGE] 알림 발송 완료: 이메일 {email_sent}건, 텔레그램 {telegram_sent}건") 
