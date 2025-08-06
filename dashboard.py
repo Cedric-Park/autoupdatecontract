@@ -379,7 +379,35 @@ class GameDashboard:
                                         selectcolor=self.style_manager.colors['bg_tertiary'],
                                         activebackground=self.style_manager.colors['bg_secondary'],
                                         font=('Segoe UI', 9))
-        immediate_check.pack(anchor='w', padx=15, pady=(0, 15))
+        immediate_check.pack(anchor='w', padx=15, pady=(0, 5))
+        
+        # 알림 설정 제목
+        tk.Label(right_section, text="알림 설정", 
+                bg=self.style_manager.colors['bg_secondary'],
+                fg=self.style_manager.colors['text_primary'],
+                font=('Segoe UI', 10, 'bold')).pack(anchor='w', padx=15, pady=(10, 5))
+                
+        # 이메일 알림 옵션
+        self.email_notifications_var = tk.BooleanVar(value=self.config.get('email_notifications', True))
+        email_check = tk.Checkbutton(right_section, text="이메일 알림", 
+                                    variable=self.email_notifications_var,
+                                    bg=self.style_manager.colors['bg_secondary'],
+                                    fg=self.style_manager.colors['text_secondary'],
+                                    selectcolor=self.style_manager.colors['bg_tertiary'],
+                                    activebackground=self.style_manager.colors['bg_secondary'],
+                                    font=('Segoe UI', 9))
+        email_check.pack(anchor='w', padx=15, pady=(0, 3))
+        
+        # 텔레그램 알림 옵션
+        self.telegram_notifications_var = tk.BooleanVar(value=self.config.get('telegram_notifications', True))
+        telegram_check = tk.Checkbutton(right_section, text="텔레그램 알림", 
+                                       variable=self.telegram_notifications_var,
+                                       bg=self.style_manager.colors['bg_secondary'],
+                                       fg=self.style_manager.colors['text_secondary'],
+                                       selectcolor=self.style_manager.colors['bg_tertiary'],
+                                       activebackground=self.style_manager.colors['bg_secondary'],
+                                       font=('Segoe UI', 9))
+        telegram_check.pack(anchor='w', padx=15, pady=(0, 10))
         
         # 설정 저장 버튼
         save_btn = ttk.Button(right_section, text="💾 설정 저장", 
@@ -581,14 +609,20 @@ class GameDashboard:
             else:
                 encoding = 'utf-8'
             
-            # login_and_crawl.py 실행 (실시간 출력, 안전한 인코딩)
+            # 알림 설정 환경 변수 설정
+            env = os.environ.copy()
+            env['EMAIL_NOTIFICATIONS'] = str(int(self.config.get('email_notifications', True)))
+            env['TELEGRAM_NOTIFICATIONS'] = str(int(self.config.get('telegram_notifications', True)))
+            
+            # login_and_crawl.py 실행 (실시간 출력, 안전한 인코딩, 환경변수 전달)
             process = subprocess.Popen(['python', 'login_and_crawl.py'], 
                                      stdout=subprocess.PIPE, 
                                      stderr=subprocess.STDOUT,
                                      text=True,
                                      encoding=encoding,
                                      errors='ignore',  # 인코딩 오류 무시
-                                     bufsize=1)
+                                     bufsize=1,
+                                     env=env)
             
             # 실시간으로 출력 읽기
             output_lines = []
@@ -674,8 +708,14 @@ class GameDashboard:
         try:
             self.config['execution_interval'] = int(self.interval_var.get())
             self.config['immediate_start'] = self.immediate_start_var.get()
+            self.config['email_notifications'] = self.email_notifications_var.get()
+            self.config['telegram_notifications'] = self.telegram_notifications_var.get()
             self.save_config()
-            self.add_log("[SAVE] 설정이 저장되었습니다.")
+            
+            # 알림 설정 로그
+            email_status = "활성화" if self.email_notifications_var.get() else "비활성화"
+            telegram_status = "활성화" if self.telegram_notifications_var.get() else "비활성화"
+            self.add_log(f"[SAVE] 설정이 저장되었습니다. (이메일 알림: {email_status}, 텔레그램 알림: {telegram_status})")
             
             # 토스트 알림
             self.show_toast("💾 설정이 저장되었습니다!", "success")

@@ -21,6 +21,12 @@ def send_individual_email(contact_info, alert_data):
     """
     개별 담당자에게 이메일 발송
     """
+    # 이메일 알림 설정 확인
+    email_enabled = os.environ.get('EMAIL_NOTIFICATIONS', '1') == '1'
+    if not email_enabled:
+        print('[INFO] 이메일 알림이 비활성화되어 있습니다.')
+        return
+        
     try:
         import yagmail
         

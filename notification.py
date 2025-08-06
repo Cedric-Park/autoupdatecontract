@@ -227,6 +227,12 @@ def make_change_alert(row, changes, changed_cols, contact_info=None, estimate_de
 
 # 신규 계약 담당자에게 이메일 발송
 def send_update_emails(company_contacts, new_rows):
+    # 이메일 알림 설정 확인
+    email_enabled = os.environ.get('EMAIL_NOTIFICATIONS', '1') == '1'
+    if not email_enabled:
+        print('[INFO] 이메일 알림이 비활성화되어 있습니다.')
+        return
+        
     print('이메일 발송 대상:', company_contacts)
     print('신규 업데이트 데이터:', new_rows)
     if not company_contacts:
@@ -272,6 +278,12 @@ def send_update_emails(company_contacts, new_rows):
             print(f"이메일 발송 실패: {to_name}({to_email}) - {e}")
 
 def send_telegram_message(message):
+    # 텔레그램 알림 설정 확인
+    telegram_enabled = os.environ.get('TELEGRAM_NOTIFICATIONS', '1') == '1'
+    if not telegram_enabled:
+        print('[INFO] 텔레그램 알림이 비활성화되어 있습니다.')
+        return
+        
     token = os.environ.get('TELEGRAM_BOT_TOKEN')
     chat_id = os.environ.get('TELEGRAM_CHAT_ID')
     if not token or not chat_id:
@@ -327,6 +339,12 @@ def send_notification(message):
     """
     통합 알림 함수: 텔레그램으로 알림 발송
     """
+    # 텔레그램 알림 설정 확인
+    telegram_enabled = os.environ.get('TELEGRAM_NOTIFICATIONS', '1') == '1'
+    if not telegram_enabled:
+        print('[INFO] 텔레그램 알림이 비활성화되어 있습니다.')
+        return
+        
     try:
         # 텔레그램 알림
         send_telegram_message(message)

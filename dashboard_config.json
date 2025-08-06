@@ -2,5 +2,7 @@
   "execution_interval": 30,
   "auto_start": false,
   "notifications_enabled": true,
-  "immediate_start": true
+  "immediate_start": true,
+  "email_notifications": true,
+  "telegram_notifications": true
 }
