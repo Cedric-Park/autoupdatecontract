@@ -2,7 +2,7 @@ import os
 from datetime import datetime
 
 # 모듈화된 기능들 임포트
-from browser_utils import login, crawl_all_pages_optimized
+from browser_utils import login, crawl_all_pages_optimized, crawl_contract_change_pages
 from gsheet_manager import (
     compare_and_update_optimized, 
     get_estimate_details_by_number, 
@@ -11,7 +11,9 @@ from gsheet_manager import (
     update_contract_details,
     get_gsheet,
     get_new_company_contacts,
-    get_contact_map
+    get_contact_map,
+    process_contract_changes,
+    send_contract_change_notifications
 )
 from notification import send_notification, send_update_emails, make_change_alert, sanitize_text
 
@@ -170,7 +172,7 @@ def main():
     try:
         print("[OK] 로그인 성공!")
         
-        # 최적화된 크롤링 시작
+        # 1. 기존 계약관리 페이지 크롤링 및 처리
         print("\n[CRAWL] 최적화된 크롤링 시작 (최대 15페이지, 2025년 조건부 중단)")
         print("-" * 50)
         
@@ -228,7 +230,29 @@ def main():
                     update_estimate_details(sheet, row_index, estimate_details)
                     estimate_update_count += 1
         
-        # [ALERT] 알림 처리
+        # 2. 계약변경관리 페이지 크롤링 및 처리
+        print("\n" + "=" * 60)
+        print("[CONTRACT_CHANGE] 계약변경관리 페이지 크롤링 시작")
+        print("=" * 60)
+        
+        # 계약변경관리 페이지 크롤링
+        contract_changes = crawl_contract_change_pages(driver)
+        
+        if not contract_changes:
+            print("[CONTRACT_CHANGE] 계약변경관리 페이지에서 데이터를 찾을 수 없습니다.")
+        else:
+            print(f"[CONTRACT_CHANGE] 계약변경관리 크롤링 완료: 총 {len(contract_changes)}개 항목")
+            
+            # 구글 시트 연결
+            sheet = get_gsheet()
+            
+            # 계약변경 데이터 처리
+            updated_contracts = process_contract_changes(contract_changes, sheet)
+            
+            # 계약변경 알림 발송
+            send_contract_change_notifications(updated_contracts)
+        
+        # 3. [ALERT] 알림 처리
         print("\n" + "=" * 60)
         print("[ALERT] 알림 처리 시작")
         print("=" * 60)
@@ -247,6 +271,7 @@ def main():
         print(f"[UPDATE] 변경 업데이트 항목: {len(updated_rows)}건")
         print(f"[ESTIMATE] 견적서 상세 업데이트: {estimate_update_count}건")
         print(f"[CONTRACT] 계약 상세 업데이트: {contract_update_count}건")
+        print(f"[CONTRACT_CHANGE] 계약변경 업데이트: {len(updated_contracts) if 'updated_contracts' in locals() else 0}건")
         print(f"[TOTAL] 총 크롤링 범위: {len(crawled_data)}개 항목 (2025년 한정)")
         
         # 변경사항 상세 로그
@@ -257,6 +282,14 @@ def main():
                 changes = item['changes']
                 print(f"   [INFO] {crawled_data[0]} ({crawled_data[3]})")
                 for change in changes:
+                    print(f"     {change}")
+        
+        # 계약변경 상세 로그
+        if 'updated_contracts' in locals() and updated_contracts:
+            print("\n[DETAIL] 계약변경 상세:")
+            for contract in updated_contracts:
+                print(f"   [INFO] {contract['game_company']} ({contract['service_name']})")
+                for change in contract['changes']:
                     print(f"     {change}")
         
     except Exception as e:
