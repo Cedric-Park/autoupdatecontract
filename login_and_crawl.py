@@ -168,6 +168,11 @@ def main():
     print(f"실행 시간: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 60)
     
+    # 알림 설정 상태 확인 및 출력
+    email_enabled = os.environ.get('EMAIL_NOTIFICATIONS', '1') == '1'
+    telegram_enabled = os.environ.get('TELEGRAM_NOTIFICATIONS', '1') == '1'
+    print(f"[CONFIG] 알림 설정 상태: 이메일={'활성화' if email_enabled else '비활성화'}, 텔레그램={'활성화' if telegram_enabled else '비활성화'}")
+    
     # 브라우저 로그인
     print("[LOGIN] 브라우저 로그인 중...")
     driver = login()

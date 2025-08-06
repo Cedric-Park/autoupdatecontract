@@ -611,8 +611,14 @@ class GameDashboard:
             
             # 알림 설정 환경 변수 설정
             env = os.environ.copy()
-            env['EMAIL_NOTIFICATIONS'] = str(int(self.config.get('email_notifications', True)))
-            env['TELEGRAM_NOTIFICATIONS'] = str(int(self.config.get('telegram_notifications', True)))
+            # 체크박스가 체크되어 있으면 '1', 아니면 '0'
+            email_enabled = self.email_notifications_var.get()
+            telegram_enabled = self.telegram_notifications_var.get()
+            env['EMAIL_NOTIFICATIONS'] = '1' if email_enabled else '0'
+            env['TELEGRAM_NOTIFICATIONS'] = '1' if telegram_enabled else '0'
+            
+            # 로그에 알림 설정 상태 표시
+            self.add_log(f"[INFO] 알림 설정 상태: 이메일={'활성화' if email_enabled else '비활성화'}, 텔레그램={'활성화' if telegram_enabled else '비활성화'}")
             
             # login_and_crawl.py 실행 (실시간 출력, 안전한 인코딩, 환경변수 전달)
             process = subprocess.Popen(['python', 'login_and_crawl.py'], 
