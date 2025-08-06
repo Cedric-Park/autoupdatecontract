@@ -818,6 +818,7 @@ def send_contract_change_notifications(updated_contracts):
     Args:
         updated_contracts: 업데이트된 계약 목록
     """
+    import os  # 환경 변수 접근을 위한 import
     if not updated_contracts:
         print("[CONTRACT_CHANGE] 알림 대상 없음")
         return
@@ -865,15 +866,21 @@ def send_contract_change_notifications(updated_contracts):
 
 계약변경관리 페이지에서 변경 사항이 감지되어 자동으로 업데이트되었습니다."""
                 
-                # 텔레그램 알림 발송
-                from notification import send_notification
-                send_notification(message)
-                telegram_sent += 1
-                print(f"[CONTRACT_CHANGE] 텔레그램 알림 발송 완료: {game_company} - {service_req_name}")
+                # 텔레그램 알림 발송 (환경 변수 확인)
+                telegram_enabled = os.environ.get('TELEGRAM_NOTIFICATIONS', '1') == '1'
+                if telegram_enabled:
+                    from notification import send_notification
+                    send_notification(message)
+                    telegram_sent += 1
+                    print(f"[CONTRACT_CHANGE] 텔레그램 알림 발송 완료: {game_company} - {service_req_name}")
+                else:
+                    print(f"[CONTRACT_CHANGE] 텔레그램 알림이 비활성화되어 있습니다.")
                 
-                # 이메일 발송
-                email_title = f"[게임더하기] {sanitized_game_company} - 계약변경 알림"
-                email_body = f"""
+                # 이메일 발송 (환경 변수 확인)
+                email_enabled = os.environ.get('EMAIL_NOTIFICATIONS', '1') == '1'
+                if email_enabled:
+                    email_title = f"[게임더하기] {sanitized_game_company} - 계약변경 알림"
+                    email_body = f"""
 {contact_info['name']}님, 안녕하세요.
 게임더하기 DRIC_BOT입니다.
 
@@ -889,29 +896,31 @@ def send_contract_change_notifications(updated_contracts):
 
 감사합니다.
 """
-                
-                # 이메일 발송 함수 호출
-                try:
-                    import yagmail
-                    import os
                     
-                    EMAIL_SENDER = os.environ.get('EMAIL_SENDER')
-                    EMAIL_APP_PASSWORD = os.environ.get('EMAIL_APP_PASSWORD')
-                    
-                    if EMAIL_SENDER and EMAIL_APP_PASSWORD:
-                        yag = yagmail.SMTP(EMAIL_SENDER, EMAIL_APP_PASSWORD)
-                        yag.send(
-                            to=contact_info['email'],
-                            subject=email_title,
-                            contents=email_body
-                        )
-                        email_sent += 1
-                        print(f"[CONTRACT_CHANGE] 이메일 알림 발송 완료: {contact_info['name']}({contact_info['email']})")
-                    else:
-                        print("[CONTRACT_CHANGE] 이메일 환경변수가 설정되지 않았습니다.")
+                    # 이메일 발송 함수 호출
+                    try:
+                        import yagmail
+                        import os
                         
-                except Exception as e:
-                    print(f"[CONTRACT_CHANGE] 이메일 발송 실패: {e}")
+                        EMAIL_SENDER = os.environ.get('EMAIL_SENDER')
+                        EMAIL_APP_PASSWORD = os.environ.get('EMAIL_APP_PASSWORD')
+                        
+                        if EMAIL_SENDER and EMAIL_APP_PASSWORD:
+                            yag = yagmail.SMTP(EMAIL_SENDER, EMAIL_APP_PASSWORD)
+                            yag.send(
+                                to=contact_info['email'],
+                                subject=email_title,
+                                contents=email_body
+                            )
+                            email_sent += 1
+                            print(f"[CONTRACT_CHANGE] 이메일 알림 발송 완료: {contact_info['name']}({contact_info['email']})")
+                        else:
+                            print("[CONTRACT_CHANGE] 이메일 환경변수가 설정되지 않았습니다.")
+                            
+                    except Exception as e:
+                        print(f"[CONTRACT_CHANGE] 이메일 발송 실패: {e}")
+                else:
+                    print(f"[CONTRACT_CHANGE] 이메일 알림이 비활성화되어 있습니다.")
             else:
                 print(f"[CONTRACT_CHANGE] 담당자 정보 없음: {game_company} - {service_req_name} (알림 발송 건너뜀)")
             
